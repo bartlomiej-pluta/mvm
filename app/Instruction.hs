@@ -1,7 +1,6 @@
 module Instruction (
   Op(..),
   Instruction(..),
-  Command(..),
   instructions,
   instructionByOp,
   toOp
@@ -42,10 +41,6 @@ data Instruction = Simple     { op        :: Op
                               , vm        :: VM.VM
                               }
                    deriving (Eq, Show)
-
-data Command = Command { instr  :: Instruction
-                       , args   :: [Int]
-                       } deriving (Eq, Show)
 
 instructions :: [Instruction]
 instructions = [ Simple { op = Nop,  noParams = 0, noPops = 0 }

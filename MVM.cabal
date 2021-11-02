@@ -27,6 +27,7 @@ executable MVM
     other-modules:
       VirtualMachine
       Instruction
+      Command
       Parser
       Util
 
