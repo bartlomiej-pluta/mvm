@@ -7,6 +7,7 @@ module Instruction (
   toOp
 ) where
 
+import Data.Foldable
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Sequence as S
@@ -47,7 +48,8 @@ data Instruction = Simple     { op        :: Op
                               , sAction   :: Args -> Pops -> Pushes
                               } 
                    | Complex  { op        :: Op
-                              , cAction   :: VM.VM -> Command -> Either String VM.VM
+                              , noParams  :: Int
+                              , cAction   :: VM.VM -> Args -> Either String VM.VM
                               } 
 
 data Command = Command { instr  :: Instruction
@@ -55,18 +57,32 @@ data Command = Command { instr  :: Instruction
                        } 
 
 instructions :: [Instruction]
-instructions = [ Simple { op = Nop,  noParams = 0, noPops = 0, sAction = (\_ _      -> S.empty)                               }
-               , Simple { op = Push, noParams = 1, noPops = 0, sAction = (\args _   -> S.fromList args)                       }
-               , Simple { op = Pop,  noParams = 0, noPops = 1, sAction = (\_ _      -> S.empty)                               }
-               , Simple { op = Dup,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [x, x])                     }
-               , Simple { op = Swap, noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y, x])                     }
-               , Simple { op = Add,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y + x])                    }
-               , Simple { op = Sub,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y - x])                    }
-               , Simple { op = Mul,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y * x])                    }
-               , Simple { op = Div,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
-               , Simple { op = Neg,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [-x])                       }
-               , Simple { op = Not,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
+instructions = [ Simple  { op = Nop,  noParams = 0, noPops = 0, sAction = (\_ _      -> S.empty)                               }
+               , Simple  { op = Push, noParams = 1, noPops = 0, sAction = (\args _   -> S.fromList args)                       }
+               , Simple  { op = Pop,  noParams = 0, noPops = 1, sAction = (\_ _      -> S.empty)                               }
+               , Simple  { op = Dup,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [x, x])                     }
+               , Simple  { op = Swap, noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y, x])                     }
+               , Simple  { op = Add,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y + x])                    }
+               , Simple  { op = Sub,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y - x])                    }
+               , Simple  { op = Mul,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y * x])                    }
+               , Simple  { op = Div,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
+               , Simple  { op = Neg,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [-x])                       }
+               , Simple  { op = Not,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
+               , Complex { op = Halt, noParams = 0, cAction = (\vm _   -> Right $ vm { VM.halt = True })                       }
+               , Complex { op = Jmp,  noParams = 1, cAction = (\vm [x] -> Right $ vm { VM.pc = x})                             }
+               , Complex { op = Je,   noParams = 1, cAction = jumpIf (==)                                                      }
+               , Complex { op = Jne,  noParams = 1, cAction = jumpIf (/=)                                                      }
+               , Complex { op = Jg,   noParams = 1, cAction = jumpIf (>)                                                       }
+               , Complex { op = Jl,   noParams = 1, cAction = jumpIf (<)                                                       }
+               , Complex { op = Jge,  noParams = 1, cAction = jumpIf (>=)                                                      }
+               , Complex { op = Jle,  noParams = 1, cAction = jumpIf (<=)                                                      }
                ]
+
+jumpIf :: (Int -> Int -> Bool) -> VM.VM -> Args -> Either String VM.VM
+jumpIf predicate vm [addr] = Right $ vm { VM.pc = pc' }
+  where
+    (top:_) = toList . VM.stack $ vm
+    pc' = if top `predicate` 0 then addr else VM.pc vm + 1
 
 instructionByOp :: Map.Map Op Instruction
 instructionByOp = Map.fromList $ map (\i -> (op i, i)) instructions
