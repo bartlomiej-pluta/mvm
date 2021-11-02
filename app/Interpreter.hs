@@ -31,7 +31,7 @@ interpretSimple vm (I.Command (I.Simple op _ noPops operation) args) = vm'
     pops = toList . S.take noPops . VM.stack $ vm
     stack' = Right $ operation args pops
     vm' = stack' >>= (\s -> Right $ vm { VM.pc = VM.pc vm + 1
-                                       , VM.stack = (S.drop noPops . VM.stack) vm <> s
+                                       , VM.stack = s <> (S.drop noPops . VM.stack) vm
                                        })
 interpretSimple _ _ = Left $ "Unknown operation"
 

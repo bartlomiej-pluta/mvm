@@ -60,10 +60,10 @@ instructions = [ Simple { op = Nop,  noParams = 0, noPops = 0, sAction = (\_ _  
                , Simple { op = Pop,  noParams = 0, noPops = 1, sAction = (\_ _      -> S.empty)                               }
                , Simple { op = Dup,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [x, x])                     }
                , Simple { op = Swap, noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y, x])                     }
-               , Simple { op = Add,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [x + y])                    }
-               , Simple { op = Sub,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [x - y])                    }
-               , Simple { op = Mul,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [x * y])                    }
-               , Simple { op = Div,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [x `div` y])                }
+               , Simple { op = Add,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y + x])                    }
+               , Simple { op = Sub,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y - x])                    }
+               , Simple { op = Mul,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y * x])                    }
+               , Simple { op = Div,  noParams = 0, noPops = 2, sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
                , Simple { op = Neg,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple { op = Not,  noParams = 0, noPops = 1, sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
                ]
