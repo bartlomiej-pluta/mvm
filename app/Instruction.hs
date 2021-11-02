@@ -8,7 +8,6 @@ module Instruction (
 
 import qualified Data.Char as Char
 import qualified Data.Map as Map
-import qualified VirtualMachine as VM
 
 data Op = Nop  -- 0x00 
         | Halt -- 0x01
@@ -38,7 +37,6 @@ data Instruction = Simple     { op        :: Op
                               , noParams  :: Int
                               , noPops    :: Int } 
                    | Complex  { op        :: Op
-                              , vm        :: VM.VM
                               }
                    deriving (Eq, Show)
 

@@ -13,7 +13,7 @@ data VM = VM { pc :: Int
              } deriving (Show, Eq)
 
 empty :: VM
-empty = VM { pc     = -1
+empty = VM { pc     = 0
            , fp     = -1
            , stack  = S.empty
            , halt   = False

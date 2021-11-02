@@ -29,6 +29,7 @@ executable MVM
       Instruction
       Command
       Parser
+      Interpreter
       Util
 
     -- LANGUAGE extensions used by modules in this package.
