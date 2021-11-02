@@ -1,6 +1,7 @@
 module Instruction (
   Op(..),
   Instruction(..),
+  Command(..),
   instructions,
   instructionByOp,
   toOp
@@ -8,6 +9,9 @@ module Instruction (
 
 import qualified Data.Char as Char
 import qualified Data.Map as Map
+import qualified Data.Sequence as S
+
+import qualified VirtualMachine as VM
 
 data Op = Nop  -- 0x00 
         | Halt -- 0x01
@@ -33,23 +37,32 @@ data Op = Nop  -- 0x00
         | Ld   -- 0x15
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
+type Args = [Int]
+type Pops = [Int]
+type Pushes = S.Seq Int
+
 data Instruction = Simple     { op        :: Op
                               , noParams  :: Int
-                              , noPops    :: Int } 
+                              , noPops    :: Int
+                              , sAction   :: Args -> Pops -> Pushes
+                              } 
                    | Complex  { op        :: Op
-                              }
-                   deriving (Eq, Show)
+                              , cAction   :: VM.VM -> Command -> Either String VM.VM
+                              } 
+
+data Command = Command { instr  :: Instruction
+                       , args   :: [Int]
+                       } 
 
 instructions :: [Instruction]
-instructions = [ Simple { op = Nop,  noParams = 0, noPops = 0 }
-               , Simple { op = Halt, noParams = 0, noPops = 0 }
-               , Simple { op = Push, noParams = 1, noPops = 0 }
-               , Simple { op = Pop,  noParams = 0, noPops = 1 }
+instructions = [ Simple { op = Nop,  noParams = 0, noPops = 0, sAction = (\_ _ -> S.empty) }
+               , Simple { op = Halt, noParams = 0, noPops = 0, sAction = (\_ _ -> S.empty) }
+               , Simple { op = Push, noParams = 1, noPops = 0, sAction = (\args _ -> S.fromList args) }
+               , Simple { op = Pop,  noParams = 0, noPops = 1, sAction = (\_ _ -> S.empty) }
                ]
 
 instructionByOp :: Map.Map Op Instruction
 instructionByOp = Map.fromList $ map (\i -> (op i, i)) instructions
-
 
 toOp :: String -> Op
 toOp = read . capitalize
