@@ -67,6 +67,24 @@ tokenizeHex input = if isPrefix && len > 0
     len = length numberStr
     numberStr = takeWhile Char.isHexDigit (drop 2 input)
 
+tokenizeChar :: Tokenizer
+tokenizeChar ('\'':'\\':x:'\'':_) = seq >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
+  where 
+    seq = case x of
+      'n'  -> Just 10
+      't'  -> Just 9
+      'v'  -> Just 11
+      'b'  -> Just 8
+      'r'  -> Just 13
+      'f'  -> Just 12
+      'a'  -> Just 7
+      '\\' -> Just 92
+      '\'' -> Just 39    
+      '0'  -> Just 0
+      _   -> Nothing
+tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . ord $ x) 3      
+tokenizeChar _ = Nothing
+
 tokenizeComment :: Tokenizer
 tokenizeComment [] = Nothing
 tokenizeComment (x:xs) = if x == ';'
@@ -106,4 +124,5 @@ tokenizers = anyTokenizer
   , sepTokenizer Char.isSpace tokenizeOperators
   , sepTokenizer Char.isSpace tokenizeHex
   , sepTokenizer Char.isSpace tokenizeDecimal
+  , sepTokenizer Char.isSpace tokenizeChar
   ]
