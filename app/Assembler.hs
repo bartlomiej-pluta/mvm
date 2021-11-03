@@ -151,6 +151,8 @@ tokenizers = anyTokenizer
 data AST = OperatorNode VM.Op 
          | IntegerNode Int
          | IdentifierNode String
+         | ColonNode
+         | AmpersandNode
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -169,6 +171,14 @@ parseInt _                    = Nothing
 parseIdentifier :: [Token] -> Maybe ParseResult
 parseIdentifier ((Identifier id):_) = Just $ ParseResult (IdentifierNode id) 1
 parseIdentifier _                   = Nothing
+
+parseColon :: [Token] -> Maybe ParseResult
+parseColon ((Colon):_) = Just $ ParseResult ColonNode 1
+parseColon _           = Nothing
+
+parseAmpersand :: [Token] -> Maybe ParseResult
+parseAmpersand ((Ampersand):_) = Just $ ParseResult AmpersandNode 1
+parseAmpersand _               = Nothing
 
 parseAny :: [Parser] -> Parser
 parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
