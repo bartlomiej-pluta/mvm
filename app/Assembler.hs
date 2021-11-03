@@ -12,6 +12,7 @@ data Token = Operator VM.Op
            | StringLiteral String
            | Identifier String
            | Colon
+           | Ampersand
            | WhiteSpace
            | Comment String
            deriving (Eq, Show)
@@ -132,6 +133,7 @@ tokenizers = anyTokenizer
   , sepTokenizer Char.isSpace tokenizeDecimal
   , tokenizeIdentifier
   , keywordTokenizer False ":" Colon
+  , keywordTokenizer False "&" Ampersand
   , tokenizeChar
   , tokenizeString
   ]
