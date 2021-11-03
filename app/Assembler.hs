@@ -8,9 +8,9 @@ import qualified VirtualMachine as VM (Op(..), Instruction, Command, instruction
 import qualified Util as U
 
 data Token = Operator VM.Op 
-           | KeywordLiteral String 
            | IntLiteral Int 
            | StringLiteral String
+           | Colon
            | WhiteSpace
            | Comment String
            deriving (Eq, Show)
@@ -21,10 +21,10 @@ data TokenizeResult = TokenizeResult Token ConsumedChars deriving (Eq, Show)
 type Tokenizer = String -> Maybe TokenizeResult
 
 type CaseSensitive = Bool
-tokenizeKeyword :: CaseSensitive -> String -> Tokenizer
-tokenizeKeyword _ _ [] = Nothing
-tokenizeKeyword cs kwd input
-  | matches    = Just $ TokenizeResult (KeywordLiteral . take len $ input) len
+keywordTokenizer :: CaseSensitive -> String -> Token -> Tokenizer
+keywordTokenizer _ _ _ [] = Nothing
+keywordTokenizer cs kwd token input
+  | matches    = Just $ TokenizeResult token len
   | otherwise  = Nothing
   where
     len = length kwd
@@ -32,14 +32,11 @@ tokenizeKeyword cs kwd input
     zipped = zipWith (==) (mapper kwd) (mapper . take len $ input)
     matches = and zipped && len == length zipped
 
-tokenizeOperator :: VM.Op -> Tokenizer
-tokenizeOperator op input = case keywordToken of
-  (Just (TokenizeResult _ consumed)) -> Just $ TokenizeResult (Operator op) consumed
-  Nothing                            -> Nothing
-  where keywordToken = tokenizeKeyword False (U.toLowerCase . show $ op) input
+operatorTokenizer :: VM.Op -> Tokenizer
+operatorTokenizer op input = keywordTokenizer False (U.toLowerCase . show $ op) (Operator op) input
 
 tokenizeOperators :: Tokenizer
-tokenizeOperators = anyTokenizer $ map tokenizeOperator [VM.Push ..]
+tokenizeOperators = anyTokenizer $ map operatorTokenizer [VM.Push ..]
 
 tokenizeWhitespace :: Tokenizer
 tokenizeWhitespace [] = Nothing
@@ -125,6 +122,7 @@ tokenizers = anyTokenizer
   , sepTokenizer Char.isSpace tokenizeOperators
   , sepTokenizer Char.isSpace tokenizeHex
   , sepTokenizer Char.isSpace tokenizeDecimal
+  , keywordTokenizer False ":" Colon
   , tokenizeChar
   , tokenizeString
   ]
