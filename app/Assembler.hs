@@ -10,6 +10,7 @@ import qualified Util as U
 data Token = Operator VM.Op 
            | IntLiteral Int 
            | StringLiteral String
+           | Identifier String
            | Colon
            | WhiteSpace
            | Comment String
@@ -37,6 +38,13 @@ operatorTokenizer op input = keywordTokenizer False (U.toLowerCase . show $ op) 
 
 tokenizeOperators :: Tokenizer
 tokenizeOperators = anyTokenizer $ map operatorTokenizer [VM.Push ..]
+
+tokenizeIdentifier :: Tokenizer
+tokenizeIdentifier input@(x:_) = if null identifier || (not . Char.isAlpha) x
+  then Nothing
+  else Just $ TokenizeResult (Identifier identifier) (length identifier)
+  where
+    identifier = takeWhile (or . sequenceA [Char.isAlphaNum, (=='_')]) input
 
 tokenizeWhitespace :: Tokenizer
 tokenizeWhitespace [] = Nothing
@@ -122,6 +130,7 @@ tokenizers = anyTokenizer
   , sepTokenizer Char.isSpace tokenizeOperators
   , sepTokenizer Char.isSpace tokenizeHex
   , sepTokenizer Char.isSpace tokenizeDecimal
+  , tokenizeIdentifier
   , keywordTokenizer False ":" Colon
   , tokenizeChar
   , tokenizeString
