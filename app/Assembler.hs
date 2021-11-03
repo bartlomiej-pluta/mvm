@@ -56,6 +56,17 @@ tokenizeDecimal input = if null numberStr
     len = length numberStr
     numberStr = takeWhile Char.isDigit input
 
+tokenizeHex :: Tokenizer
+tokenizeHex [] = Nothing
+tokenizeHex input = if isPrefix && len > 0
+  then Just $ TokenizeResult (IntLiteral number) (len + 2)
+  else Nothing
+  where
+    isPrefix = take 2 input == "0x"
+    number = read . ("0x"++) $ numberStr
+    len = length numberStr
+    numberStr = takeWhile Char.isHexDigit (drop 2 input)
+
 tokenizeComment :: Tokenizer
 tokenizeComment [] = Nothing
 tokenizeComment (x:xs) = if x == ';'
@@ -93,5 +104,6 @@ tokenizers = anyTokenizer
   [ tokenizeWhitespace
   , tokenizeComment
   , sepTokenizer Char.isSpace tokenizeOperators
+  , sepTokenizer Char.isSpace tokenizeHex
   , sepTokenizer Char.isSpace tokenizeDecimal
   ]
