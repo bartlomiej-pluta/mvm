@@ -39,18 +39,52 @@ tokenizeOperator op input = case keywordToken of
 tokenizeOperators :: Tokenizer
 tokenizeOperators = anyTokenizer $ map tokenizeOperator [VM.Push ..]
 
-whitespaceTokenizer :: Tokenizer
-whitespaceTokenizer [] = Nothing
-whitespaceTokenizer (x:_)
+tokenizeWhitespace :: Tokenizer
+tokenizeWhitespace [] = Nothing
+tokenizeWhitespace (x:_)
   | Char.isSpace x = Just $ TokenizeResult WhiteSpace 1
   | otherwise      = Nothing
+
+tokenizeDecimal :: Tokenizer
+tokenizeDecimal [] = Nothing
+tokenizeDecimal input = if null numberStr
+  then Nothing
+  else Just $ TokenizeResult (IntLiteral number) len
+  where    
+    number = read numberStr
+    len = length numberStr
+    numberStr = toNumber input
+    toNumber [] = []
+    toNumber (x:xs) = if Char.isDigit x
+      then x : toNumber xs
+      else []
+
+type SeparatorPredicate = Char -> Bool
+sepTokenizer :: SeparatorPredicate -> Tokenizer -> Tokenizer
+sepTokenizer pred tokenizer input = do
+  (TokenizeResult token consumed) <- tokenizer input
+  let next = drop consumed input
+  let (isSep, consumed') = if null next 
+                           then (True, 0)
+                           else if pred . head $ next
+                             then (True, 1)
+                             else (False, 0)
+  if isSep
+  then return $ TokenizeResult token (consumed + consumed')
+  else Nothing
 
 anyTokenizer :: [Tokenizer] -> Tokenizer
 anyTokenizer tokenizers input = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA tokenizers input
 
 tokenize :: String -> Either String [Token]
 tokenize [] = Right []
-tokenize input = case runTokenizer input of
+tokenize input = case tokenizers input of
     (Just (TokenizeResult token chars)) -> tokenize (drop chars input) >>= (\rest -> return $ token : rest)
     Nothing                             -> Left $ "Unknown token: " ++ take 20 input
-  where runTokenizer = anyTokenizer [tokenizeOperators, whitespaceTokenizer]
+
+tokenizers :: Tokenizer
+tokenizers = anyTokenizer
+  [ tokenizeWhitespace
+  , sepTokenizer Char.isSpace tokenizeOperators
+  , sepTokenizer Char.isSpace tokenizeDecimal
+  ]
