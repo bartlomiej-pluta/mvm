@@ -13,6 +13,7 @@ data Token = Operator VM.Op
            | Identifier String
            | Colon
            | Ampersand
+           | NewLine
            | WhiteSpace
            | Comment String
            deriving (Eq, Show)
@@ -126,7 +127,8 @@ tokenize input = case tokenizers input of
 
 tokenizers :: Tokenizer
 tokenizers = anyTokenizer
-  [ tokenizeWhitespace
+  [ keywordTokenizer False "\n" NewLine
+  , tokenizeWhitespace
   , tokenizeComment
   , sepTokenizer Char.isSpace tokenizeOperators
   , sepTokenizer Char.isSpace tokenizeHex
