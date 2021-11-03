@@ -155,6 +155,7 @@ data AST = OperatorNode VM.Op
          | AmpersandNode
          | LabelDefNode String
          | LabelRefNode String
+         | ParamNode AST
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -189,6 +190,14 @@ parseLabelDef = parseSeq [parseIdentifier, parseColon] combine
 parseLabelRef :: Parser
 parseLabelRef = parseSeq [parseAmpersand, parseIdentifier] combine
   where combine = (\[_, (IdentifierNode id)] -> LabelRefNode id)
+
+parseParam :: Parser
+parseParam = parseAlt [parseInt, parseLabelRef] ParamNode
+
+parseAlt :: [Parser] -> (AST -> AST) -> Parser
+parseAlt parsers mapper tokens = do
+  (ParseResult ast consumed) <- parseAny parsers tokens
+  return $ ParseResult (mapper ast) consumed
 
 parseAny :: [Parser] -> Parser
 parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
