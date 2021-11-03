@@ -2,11 +2,16 @@ module Assembler (
   tokenize
 ) where
 
+import Data.Char as Char
 import Data.Monoid as Monoid
 import qualified VirtualMachine as VM (Op(..), Instruction, Command, instructionByOp)
 import qualified Util as U
 
-data Token = Operator VM.Op | KeywordLiteral String | IntLiteral Int deriving (Eq, Show)
+data Token = Operator VM.Op 
+           | KeywordLiteral String 
+           | IntLiteral Int 
+           | WhiteSpace
+           deriving (Eq, Show)
 
 type ConsumedChars = Int
 data TokenizeResult = TokenizeResult Token ConsumedChars deriving (Eq, Show)
@@ -31,11 +36,21 @@ tokenizeOperator op input = case keywordToken of
   Nothing                            -> Nothing
   where keywordToken = tokenizeKeyword False (U.toLowerCase . show $ op) input
 
-anyTokenizer :: [Tokenizer] -> Tokenizer
-anyTokenizer tokenizers input = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA tokenizers input
-
 tokenizeOperators :: Tokenizer
 tokenizeOperators = anyTokenizer $ map tokenizeOperator [VM.Push ..]
 
-tokenize :: Tokenizer
-tokenize = tokenizeOperators
+whitespaceTokenizer :: Tokenizer
+whitespaceTokenizer [] = Nothing
+whitespaceTokenizer (x:_)
+  | Char.isSpace x = Just $ TokenizeResult WhiteSpace 1
+  | otherwise      = Nothing
+
+anyTokenizer :: [Tokenizer] -> Tokenizer
+anyTokenizer tokenizers input = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA tokenizers input
+
+tokenize :: String -> Either String [Token]
+tokenize [] = Right []
+tokenize input = case runTokenizer input of
+    (Just (TokenizeResult token chars)) -> tokenize (drop chars input) >>= (\rest -> return $ token : rest)
+    Nothing                             -> Left $ "Unknown token: " ++ take 20 input
+  where runTokenizer = anyTokenizer [tokenizeOperators, whitespaceTokenizer]
