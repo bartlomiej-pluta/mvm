@@ -54,11 +54,7 @@ tokenizeDecimal input = if null numberStr
   where    
     number = read numberStr
     len = length numberStr
-    numberStr = toNumber input
-    toNumber [] = []
-    toNumber (x:xs) = if Char.isDigit x
-      then x : toNumber xs
-      else []
+    numberStr = takeWhile Char.isDigit input
 
 tokenizeComment :: Tokenizer
 tokenizeComment [] = Nothing
@@ -67,11 +63,7 @@ tokenizeComment (x:xs) = if x == ';'
   else Nothing
   where
     len = length comment
-    comment = toEOL xs
-    toEOL [] = []
-    toEOL (x:xs) = if x == '\n'
-      then []
-      else x : toEOL xs
+    comment = takeWhile (/='\n') xs
 
 type SeparatorPredicate = Char -> Bool
 sepTokenizer :: SeparatorPredicate -> Tokenizer -> Tokenizer
