@@ -6,13 +6,18 @@ module VirtualMachine (
   empty,
   instructions,
   instructionByOp,
-  toOp
+  toOp,
+  run
 ) where
 
+import Data.Word
 import Data.Foldable
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Sequence as S
+import qualified Data.ByteString as B
+
+import qualified Util as U
 
 data VM = VM { pc :: Int
              , fp :: Int
@@ -105,3 +110,53 @@ toOp = read . capitalize
   where capitalize :: String -> String
         capitalize [] = []
         capitalize (x:xs) = Char.toUpper x : map Char.toLower xs
+
+parse :: B.ByteString -> Either String [Command]
+parse = parseCommands . B.unpack
+
+parseCommands :: [Word8] -> Either String [Command]
+parseCommands [] = Right []
+parseCommands code@(x:_) = case parseCommand code of
+  Just (cmd, rest) -> parseCommands rest >>= (\r -> return $ cmd : r)                              
+  Nothing          -> Left $ "Unparseable byte: " ++ U.byteStr x ++ "\nIn following sequence:\n" ++ U.bytesStr 16 code
+
+parseCommand :: [Word8] -> Maybe (Command, [Word8])
+parseCommand [] = Nothing
+parseCommand (opByte:xs) = do
+  let op = toEnum . fromIntegral $ opByte :: Op
+  instruction <- Map.lookup op instructionByOp
+  let paramsNumber = noParams instruction
+  let params = map fromIntegral $ take paramsNumber xs :: [Int]
+  return (Command instruction params, drop paramsNumber xs)
+
+interpret :: [Command] -> VM -> Either String VM
+interpret _ vm@(VM _ _ _ True) = Right $ vm
+interpret cmds vm = do
+  vm' <- interpretCommand cmds vm
+  interpret cmds vm'
+
+interpretCommand :: [Command] -> VM -> Either String VM
+interpretCommand [] _ = Left $ "Empty code"
+interpretCommand cmds vm@(VM pc _ _ _)
+  | pc >= length cmds = Right $ vm { halt = True }
+  | otherwise         = case instr of
+                          (Simple _ _ _ _) -> interpretSimple vm cmd
+                          (Complex _ _ _)    -> interpretComplex vm cmd
+                          where cmd@(Command instr _) = cmds !! pc
+
+interpretSimple :: VM -> Command -> Either String VM
+interpretSimple vm (Command (Simple op _ noPops operation) args) = vm'
+  where
+    pops = toList . S.take noPops . stack $ vm
+    stack' = Right $ operation args pops
+    vm' = stack' >>= (\s -> Right $ vm { pc = pc vm + 1
+                                       , stack = s <> (S.drop noPops . stack) vm
+                                       })
+interpretSimple _ _ = Left "Unknown operation"
+
+interpretComplex :: VM -> Command -> Either String VM
+interpretComplex vm (Command (Complex _ _ operation) args) = operation vm args
+interpretComplex _ _ = Left "Unknown operation"
+
+run :: VM -> B.ByteString -> Either String VM
+run vm code = parse code >>= flip interpret vm
