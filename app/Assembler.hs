@@ -2,8 +2,8 @@ module Assembler (
   tokenize
 ) where
 
-import Data.Char as Char
-import Data.Monoid as Monoid
+import qualified Data.Char as Char
+import qualified Data.Monoid as Monoid
 import qualified VirtualMachine as VM (Op(..), Instruction, Command, instructionByOp)
 import qualified Util as U
 
@@ -77,7 +77,7 @@ tokenizeHex input = if isPrefix && len > 0
 
 tokenizeChar :: Tokenizer
 tokenizeChar ('\'':'\\':x:'\'':_) = U.controlChar x >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
-tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . ord $ x) 3      
+tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . Char.ord $ x) 3      
 tokenizeChar _ = Nothing
 
 tokenizeString :: Tokenizer
@@ -121,9 +121,16 @@ anyTokenizer tokenizers input = Monoid.getFirst . Monoid.mconcat . map Monoid.Fi
 
 tokenize :: String -> Either String [Token]
 tokenize [] = Right []
-tokenize input = case tokenizers input of
-    (Just (TokenizeResult token chars)) -> tokenize (drop chars input) >>= (\rest -> return $ token : rest)
-    Nothing                             -> Left $ "Unknown token: " ++ take 20 input
+tokenize input = tokens >>= (\t -> Right $ filter tokenFilter t)
+  where
+    tokens = case tokenizers input of
+      (Just (TokenizeResult token chars)) -> tokenize (drop chars input) >>= (\rest -> return $ token : rest)
+      Nothing                             -> Left $ "Unknown token: " ++ take 20 input
+
+tokenFilter :: Token -> Bool
+tokenFilter (WhiteSpace) = False
+tokenFilter (Comment _)  = False
+tokenFilter _            = True
 
 tokenizers :: Tokenizer
 tokenizers = anyTokenizer

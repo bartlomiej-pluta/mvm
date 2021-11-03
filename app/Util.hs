@@ -4,7 +4,8 @@ module Util (
   bytesStr,
   head,
   unescape,
-  controlChar
+  controlChar,
+  explode
 ) where
 
 import Prelude hiding (head)
@@ -58,3 +59,10 @@ controlChar x = case x of
     '\'' -> Just 39
     '0'  -> Just 0
     _    -> Nothing
+
+explode :: (Foldable f) => (a -> Bool) -> f a -> [[a]]
+explode pred xs = filter (not . null) $ foldr split [[]] xs 
+  where 
+    split y (ys:yss) 
+      | pred y    = []:ys:yss
+      | otherwise = (y:ys):yss
