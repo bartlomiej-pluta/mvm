@@ -183,6 +183,23 @@ parseAmpersand _               = Nothing
 parseAny :: [Parser] -> Parser
 parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
 
+parseSeq :: [Parser] -> ([AST] -> AST) -> Parser
+parseSeq parsers combiner tokens = do
+  results <- parseAll parsers tokens
+  let consumed = sum $ map (\(ParseResult _ c) -> c) results
+  let asts = map (\(ParseResult a _) -> a) results
+  if (length asts) == (length parsers)
+  then return $ ParseResult (combiner asts) consumed
+  else Nothing
+
+parseAll :: [Parser] -> [Token] -> Maybe [ParseResult]
+parseAll _ [] = Just []
+parseAll (p:ps) tokens = do
+  (ParseResult ast consumed) <- p tokens
+  rest <- parseAll ps (drop consumed tokens)
+  return $ (ParseResult ast consumed) : rest
+parseAll _ _ = Nothing
+
 parse :: [Token] -> Either String [AST]
 parse [] = Right []
 parse tokens = case parsers tokens of
