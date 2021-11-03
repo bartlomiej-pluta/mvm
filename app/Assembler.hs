@@ -153,6 +153,8 @@ data AST = OperatorNode VM.Op
          | IdentifierNode String
          | ColonNode
          | AmpersandNode
+         | LabelDefNode String
+         | LabelRefNode String
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -160,25 +162,33 @@ data ParseResult = ParseResult AST ConsumedTokens deriving (Eq, Show)
 
 type Parser = [Token] -> Maybe ParseResult
 
-parseOperator :: [Token] -> Maybe ParseResult
+parseOperator :: Parser
 parseOperator ((Operator op):_) = Just $ ParseResult (OperatorNode op) 1
 parseOperator _                 = Nothing
 
-parseInt :: [Token] -> Maybe ParseResult
+parseInt :: Parser
 parseInt ((IntLiteral int):_) = Just $ ParseResult (IntegerNode int) 1
 parseInt _                    = Nothing
 
-parseIdentifier :: [Token] -> Maybe ParseResult
+parseIdentifier :: Parser
 parseIdentifier ((Identifier id):_) = Just $ ParseResult (IdentifierNode id) 1
 parseIdentifier _                   = Nothing
 
-parseColon :: [Token] -> Maybe ParseResult
+parseColon :: Parser
 parseColon ((Colon):_) = Just $ ParseResult ColonNode 1
 parseColon _           = Nothing
 
-parseAmpersand :: [Token] -> Maybe ParseResult
+parseAmpersand :: Parser
 parseAmpersand ((Ampersand):_) = Just $ ParseResult AmpersandNode 1
 parseAmpersand _               = Nothing
+
+parseLabelDef :: Parser
+parseLabelDef = parseSeq [parseIdentifier, parseColon] combine
+  where combine = (\[(IdentifierNode id), _] -> LabelDefNode id)
+
+parseLabelRef :: Parser
+parseLabelRef = parseSeq [parseAmpersand, parseIdentifier] combine
+  where combine = (\[_, (IdentifierNode id)] -> LabelRefNode id)
 
 parseAny :: [Parser] -> Parser
 parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
@@ -204,11 +214,10 @@ parse :: [Token] -> Either String [AST]
 parse [] = Right []
 parse tokens = case parsers tokens of
   (Just (ParseResult ast consumed)) -> parse (drop consumed tokens) >>= (\rest -> return $ ast : rest)
-  Nothing                           -> Left "Unexpected token"
+  Nothing                           -> Left $ "Unexpected token: " ++ (show . head) tokens
 
 parsers :: Parser
 parsers = parseAny
-  [ parseOperator
-  , parseInt
-  , parseIdentifier
+  [ parseLabelDef
+  , parseLabelRef
   ]
