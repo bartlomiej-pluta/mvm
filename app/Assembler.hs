@@ -10,6 +10,7 @@ import qualified Util as U
 data Token = Operator VM.Op 
            | KeywordLiteral String 
            | IntLiteral Int 
+           | StringLiteral String
            | WhiteSpace
            | Comment String
            deriving (Eq, Show)
@@ -68,22 +69,22 @@ tokenizeHex input = if isPrefix && len > 0
     numberStr = takeWhile Char.isHexDigit (drop 2 input)
 
 tokenizeChar :: Tokenizer
-tokenizeChar ('\'':'\\':x:'\'':_) = seq >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
-  where 
-    seq = case x of
-      'n'  -> Just 10
-      't'  -> Just 9
-      'v'  -> Just 11
-      'b'  -> Just 8
-      'r'  -> Just 13
-      'f'  -> Just 12
-      'a'  -> Just 7
-      '\\' -> Just 92
-      '\'' -> Just 39    
-      '0'  -> Just 0
-      _   -> Nothing
+tokenizeChar ('\'':'\\':x:'\'':_) = U.controlChar x >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
 tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . ord $ x) 3      
 tokenizeChar _ = Nothing
+
+tokenizeString :: Tokenizer
+tokenizeString ('"':xs) = do
+    string <- extractString xs
+    unescaped <- U.unescape string
+    return $ TokenizeResult (StringLiteral unescaped) (length string + 2)  
+  where
+    extractString [] = Nothing
+    extractString (x:xs)
+        | x == '"'  = Just []
+        | x == '\n' = Nothing
+        | otherwise = extractString xs >>= (\r -> return $ x : r)
+tokenizeString _  = Nothing
 
 tokenizeComment :: Tokenizer
 tokenizeComment [] = Nothing
@@ -124,5 +125,6 @@ tokenizers = anyTokenizer
   , sepTokenizer Char.isSpace tokenizeOperators
   , sepTokenizer Char.isSpace tokenizeHex
   , sepTokenizer Char.isSpace tokenizeDecimal
-  , sepTokenizer Char.isSpace tokenizeChar
+  , tokenizeChar
+  , tokenizeString
   ]

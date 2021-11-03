@@ -1,10 +1,14 @@
 module Util (
   toLowerCase,
   byteStr,
-  bytesStr
+  bytesStr,
+  head,
+  unescape,
+  controlChar
 ) where
 
-import Data.List
+import Prelude hiding (head)
+import Data.List hiding (head)
 import Data.Word
 import Numeric (showHex)
 import qualified Data.Char as Char
@@ -27,3 +31,30 @@ insertAtN c n xs = insertAtN' n xs
 
 pad :: Char -> Int -> String -> String
 pad char width string = replicate (width - length string) char ++ string
+
+head :: [a] -> Maybe a
+head []    = Nothing
+head (x:_) = Just x
+
+unescape :: String -> Maybe String
+unescape ('\\':x:xs) = do
+  cc <- fmap Char.chr $ controlChar x
+  rest <- unescape xs
+  return $ cc : rest
+unescape (x:xs) = unescape xs >>= (\rest -> return $ x : rest)
+unescape [] = Just []
+
+controlChar :: Char -> Maybe Int
+controlChar x = case x of
+    'n'  -> Just 10
+    't'  -> Just 9
+    'v'  -> Just 11
+    'b'  -> Just 8
+    'r'  -> Just 13
+    'f'  -> Just 12
+    'a'  -> Just 7
+    '\\' -> Just 92
+    '"'  -> Just 34
+    '\'' -> Just 39
+    '0'  -> Just 0
+    _    -> Nothing
