@@ -11,6 +11,7 @@ data Token = Operator VM.Op
            | KeywordLiteral String 
            | IntLiteral Int 
            | WhiteSpace
+           | Comment String
            deriving (Eq, Show)
 
 type ConsumedChars = Int
@@ -59,6 +60,19 @@ tokenizeDecimal input = if null numberStr
       then x : toNumber xs
       else []
 
+tokenizeComment :: Tokenizer
+tokenizeComment [] = Nothing
+tokenizeComment (x:xs) = if x == ';'
+  then Just $ TokenizeResult (Comment comment) (len + 1)
+  else Nothing
+  where
+    len = length comment
+    comment = toEOL xs
+    toEOL [] = []
+    toEOL (x:xs) = if x == '\n'
+      then []
+      else x : toEOL xs
+
 type SeparatorPredicate = Char -> Bool
 sepTokenizer :: SeparatorPredicate -> Tokenizer -> Tokenizer
 sepTokenizer pred tokenizer input = do
@@ -85,6 +99,7 @@ tokenize input = case tokenizers input of
 tokenizers :: Tokenizer
 tokenizers = anyTokenizer
   [ tokenizeWhitespace
+  , tokenizeComment
   , sepTokenizer Char.isSpace tokenizeOperators
   , sepTokenizer Char.isSpace tokenizeDecimal
   ]
