@@ -1,4 +1,5 @@
 module Util (
+  toLowerCase,
   byteStr,
   bytesStr
 ) where
@@ -6,6 +7,10 @@ module Util (
 import Data.List
 import Data.Word
 import Numeric (showHex)
+import qualified Data.Char as Char
+
+toLowerCase :: String -> String
+toLowerCase = map Char.toLower
 
 bytesStr :: Int -> [Word8] -> String
 bytesStr sparse = insertAtN '\n' (sparse*3) . intercalate " " . map byteStr
