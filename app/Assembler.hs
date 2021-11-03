@@ -148,7 +148,8 @@ tokenizers = anyTokenizer
   , tokenizeString
   ]
 
-data AST = OperatorNode VM.Op 
+data AST = EmptyNode
+         | OperatorNode VM.Op 
          | IntegerNode Int
          | IdentifierNode String
          | ColonNode
@@ -156,6 +157,8 @@ data AST = OperatorNode VM.Op
          | LabelDefNode String
          | LabelRefNode String
          | ParamNode AST
+         | ParamsNode [AST]
+         | InstructionNode AST AST
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -194,6 +197,22 @@ parseLabelRef = parseSeq [parseAmpersand, parseIdentifier] combine
 parseParam :: Parser
 parseParam = parseAlt [parseInt, parseLabelRef] ParamNode
 
+parseInstr :: Parser
+parseInstr = parseSeq [parseOperator, parseMany parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
+
+parseMany :: Parser -> ([AST] -> AST) -> Parser
+parseMany parser combiner tokens = Just $ ParseResult ast consumed
+  where    
+    results = parseGreedy parser tokens
+    consumed = sum $ map (\(ParseResult _ c) -> c) results
+    asts = map (\(ParseResult a _) -> a) results    
+    ast = if null asts then EmptyNode else combiner asts
+
+parseGreedy :: Parser -> [Token] -> [ParseResult]
+parseGreedy parser tokens = case parser tokens of
+  (Just r@(ParseResult ast consumed)) -> r : parseGreedy parser (drop consumed tokens)
+  Nothing                             -> []
+
 parseAlt :: [Parser] -> (AST -> AST) -> Parser
 parseAlt parsers mapper tokens = do
   (ParseResult ast consumed) <- parseAny parsers tokens
@@ -229,4 +248,5 @@ parsers :: Parser
 parsers = parseAny
   [ parseLabelDef
   , parseLabelRef
+  , parseInstr
   ]
