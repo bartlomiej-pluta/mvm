@@ -1,5 +1,6 @@
 module Assembler (
-  tokenize
+  tokenize,
+  parse
 ) where
 
 import qualified Data.Char as Char
@@ -145,4 +146,42 @@ tokenizers = anyTokenizer
   , keywordTokenizer False "&" Ampersand
   , tokenizeChar
   , tokenizeString
+  ]
+
+data AST = OperatorNode VM.Op 
+         | IntegerNode Int
+         | IdentifierNode String
+         deriving (Eq, Show)
+
+type ConsumedTokens = Int
+data ParseResult = ParseResult AST ConsumedTokens deriving (Eq, Show)
+
+type Parser = [Token] -> Maybe ParseResult
+
+parseOperator :: [Token] -> Maybe ParseResult
+parseOperator ((Operator op):_) = Just $ ParseResult (OperatorNode op) 1
+parseOperator _                 = Nothing
+
+parseInt :: [Token] -> Maybe ParseResult
+parseInt ((IntLiteral int):_) = Just $ ParseResult (IntegerNode int) 1
+parseInt _                    = Nothing
+
+parseIdentifier :: [Token] -> Maybe ParseResult
+parseIdentifier ((Identifier id):_) = Just $ ParseResult (IdentifierNode id) 1
+parseIdentifier _                   = Nothing
+
+parseAny :: [Parser] -> Parser
+parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
+
+parse :: [Token] -> Either String [AST]
+parse [] = Right []
+parse tokens = case parsers tokens of
+  (Just (ParseResult ast consumed)) -> parse (drop consumed tokens) >>= (\rest -> return $ ast : rest)
+  Nothing                           -> Left "Unexpected token"
+
+parsers :: Parser
+parsers = parseAny
+  [ parseOperator
+  , parseInt
+  , parseIdentifier
   ]
