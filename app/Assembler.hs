@@ -131,6 +131,7 @@ tokenize input = tokens >>= (\t -> Right $ filter tokenFilter t)
 tokenFilter :: Token -> Bool
 tokenFilter (WhiteSpace) = False
 tokenFilter (Comment _)  = False
+tokenFilter (NewLine)    = False
 tokenFilter _            = True
 
 tokenizers :: Tokenizer
@@ -159,7 +160,7 @@ data AST = EmptyNode
          | ParamNode AST
          | ParamsNode [AST]
          | InstructionNode AST AST
-         | LineNode AST AST
+         | LineNode AST AST         
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -258,11 +259,6 @@ parseAll (p:ps) tokens = do
 
 parse :: [Token] -> Either String [AST]
 parse [] = Right []
-parse tokens = case parsers tokens of
+parse tokens = case parseLine tokens of
   (Just (ParseResult ast consumed)) -> parse (drop consumed tokens) >>= (\rest -> return $ ast : rest)
   Nothing                           -> Left $ "Unexpected token: " ++ (show . head) tokens
-
-parsers :: Parser
-parsers = parseAny
-  [ parseLine
-  ]
