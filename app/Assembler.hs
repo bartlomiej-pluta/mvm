@@ -198,15 +198,25 @@ parseParam :: Parser
 parseParam = parseAlt [parseInt, parseLabelRef] ParamNode
 
 parseInstr :: Parser
-parseInstr = parseSeq [parseOperator, parseMany parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
+parseInstr = parseAny [withParams, withoutParams]
+  where 
+    withParams = parseSeq [parseOperator, parseMany parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
+    withoutParams = mapAST parseOperator (\op -> InstructionNode op EmptyNode)
+
+mapAST :: Parser -> (AST -> AST) -> Parser
+mapAST parser mapper tokens = do
+  (ParseResult ast consumed) <- parser tokens
+  return $ ParseResult (mapper ast) consumed
 
 parseMany :: Parser -> ([AST] -> AST) -> Parser
-parseMany parser combiner tokens = Just $ ParseResult ast consumed
+parseMany parser combiner tokens = if null asts
+  then Nothing
+  else Just $ ParseResult ast consumed
   where    
     results = parseGreedy parser tokens
     consumed = sum $ map (\(ParseResult _ c) -> c) results
     asts = map (\(ParseResult a _) -> a) results    
-    ast = if null asts then EmptyNode else combiner asts
+    ast = combiner asts
 
 parseGreedy :: Parser -> [Token] -> [ParseResult]
 parseGreedy parser tokens = case parser tokens of
@@ -246,7 +256,5 @@ parse tokens = case parsers tokens of
 
 parsers :: Parser
 parsers = parseAny
-  [ parseLabelDef
-  , parseLabelRef
-  , parseInstr
+  [ parseInstr
   ]
