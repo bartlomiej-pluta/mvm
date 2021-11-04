@@ -288,8 +288,8 @@ parse :: [Token] -> Either String AST
 parse tokens = do
   let lines = U.explode (==NewLine) tokens
   let results = map (assertConsumed parseLine) lines
-  let errors = filter ((==Nothing) . snd) (zipWith (,) [1..] $ results)
-  let errorMsg = "Parse error in line(s): " ++ (List.intercalate ", " $ map (show. fst) errors)
+  let errors = filter ((==Nothing) . snd) $ zipWith (,) lines $ results 
+  let errorMsg = "Parse error(s):\n" ++ (List.intercalate "\n" $ map (show . fst) errors)
   case sequenceA results of
     (Just r) -> return $ ProgramNode $ map (\(ParseResult ast _) -> ast) r
     Nothing  -> Left errorMsg
