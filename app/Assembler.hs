@@ -198,15 +198,20 @@ parseParam :: Parser
 parseParam = parseAlt [parseInt, parseLabelRef] ParamNode
 
 parseInstr :: Parser
-parseInstr = parseAny [withParams, withoutParams]
-  where 
-    withParams = parseSeq [parseOperator, parseMany parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
-    withoutParams = mapAST parseOperator (\op -> InstructionNode op EmptyNode)
+parseInstr = parseSeq [parseOperator, parseMany0 parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
 
 mapAST :: Parser -> (AST -> AST) -> Parser
 mapAST parser mapper tokens = do
   (ParseResult ast consumed) <- parser tokens
   return $ ParseResult (mapper ast) consumed
+
+parseOptionally :: Parser -> Parser
+parseOptionally parser input = case parser input of
+  Nothing -> Just $ ParseResult EmptyNode 0
+  result  -> result
+
+parseMany0 :: Parser -> ([AST] -> AST) -> Parser
+parseMany0 parser combiner = parseOptionally $ parseMany parser combiner
 
 parseMany :: Parser -> ([AST] -> AST) -> Parser
 parseMany parser combiner tokens = if null asts
@@ -241,12 +246,11 @@ parseSeq parsers combiner tokens = do
   else Nothing
 
 parseAll :: [Parser] -> [Token] -> Maybe [ParseResult]
-parseAll _ [] = Just []
+parseAll [] _ = Just []
 parseAll (p:ps) tokens = do
   (ParseResult ast consumed) <- p tokens
   rest <- parseAll ps (drop consumed tokens)
   return $ (ParseResult ast consumed) : rest
-parseAll _ _ = Nothing
 
 parse :: [Token] -> Either String [AST]
 parse [] = Right []
