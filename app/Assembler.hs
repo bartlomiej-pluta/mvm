@@ -131,7 +131,6 @@ tokenize input = tokens >>= (\t -> Right $ filter tokenFilter t)
 tokenFilter :: Token -> Bool
 tokenFilter (WhiteSpace) = False
 tokenFilter (Comment _)  = False
-tokenFilter (NewLine)    = False
 tokenFilter _            = True
 
 tokenizers :: Tokenizer
@@ -139,9 +138,9 @@ tokenizers = anyTokenizer
   [ keywordTokenizer False "\n" NewLine
   , tokenizeWhitespace
   , tokenizeComment
-  , sepTokenizer Char.isSpace tokenizeOperators
-  , sepTokenizer Char.isSpace tokenizeHex
-  , sepTokenizer Char.isSpace tokenizeDecimal
+  , tokenizeOperators
+  , tokenizeHex
+  , tokenizeDecimal
   , tokenizeIdentifier
   , keywordTokenizer False ":" Colon
   , keywordTokenizer False "&" Ampersand
@@ -160,7 +159,8 @@ data AST = EmptyNode
          | ParamNode AST
          | ParamsNode [AST]
          | InstructionNode AST AST
-         | LineNode AST AST         
+         | LineNode AST AST      
+         | ProgramNode [AST]   
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -168,40 +168,50 @@ data ParseResult = ParseResult AST ConsumedTokens deriving (Eq, Show)
 
 type Parser = [Token] -> Maybe ParseResult
 
+-- OP := push | pop ...
 parseOperator :: Parser
 parseOperator ((Operator op):_) = Just $ ParseResult (OperatorNode op) 1
 parseOperator _                 = Nothing
 
+-- INT := 0 | 1 | ... | 0x00 | 0x01 | ... | 'a' | 'b' | ...
 parseInt :: Parser
 parseInt ((IntLiteral int):_) = Just $ ParseResult (IntegerNode int) 1
 parseInt _                    = Nothing
 
+-- ID := [alnum, '_']+
 parseIdentifier :: Parser
 parseIdentifier ((Identifier id):_) = Just $ ParseResult (IdentifierNode id) 1
 parseIdentifier _                   = Nothing
 
+-- ':'
 parseColon :: Parser
 parseColon ((Colon):_) = Just $ ParseResult ColonNode 1
 parseColon _           = Nothing
 
+-- '&'
 parseAmpersand :: Parser
 parseAmpersand ((Ampersand):_) = Just $ ParseResult AmpersandNode 1
 parseAmpersand _               = Nothing
 
+-- label_def := ID ':'
 parseLabelDef :: Parser
 parseLabelDef = parseSeq [parseIdentifier, parseColon] combine
   where combine = (\[(IdentifierNode id), _] -> LabelDefNode id)
 
+-- label_ref := '&' ID
 parseLabelRef :: Parser
 parseLabelRef = parseSeq [parseAmpersand, parseIdentifier] combine
   where combine = (\[_, (IdentifierNode id)] -> LabelRefNode id)
 
+-- param := INT | label_ref
 parseParam :: Parser
 parseParam = parseAlt [parseInt, parseLabelRef] ParamNode
 
+-- instr := OP param*
 parseInstr :: Parser
 parseInstr = parseSeq [parseOperator, parseMany0 parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
 
+-- line := label_def? instr?
 parseLine :: Parser
 parseLine = parseSeq [parseOptionally parseLabelDef, parseOptionally parseInstr] (\[label, instr] -> LineNode label instr)
 
@@ -210,14 +220,17 @@ mapAST parser mapper tokens = do
   (ParseResult ast consumed) <- parser tokens
   return $ ParseResult (mapper ast) consumed
 
+-- a?
 parseOptionally :: Parser -> Parser
 parseOptionally parser input = case parser input of
   Nothing -> Just $ ParseResult EmptyNode 0
   result  -> result
 
+-- a*
 parseMany0 :: Parser -> ([AST] -> AST) -> Parser
 parseMany0 parser combiner = parseOptionally $ parseMany parser combiner
 
+-- a+
 parseMany :: Parser -> ([AST] -> AST) -> Parser
 parseMany parser combiner tokens = if null asts
   then Nothing
@@ -228,19 +241,23 @@ parseMany parser combiner tokens = if null asts
     asts = map (\(ParseResult a _) -> a) results    
     ast = combiner asts
 
+-- a a a a a a a...
 parseGreedy :: Parser -> [Token] -> [ParseResult]
 parseGreedy parser tokens = case parser tokens of
   (Just r@(ParseResult ast consumed)) -> r : parseGreedy parser (drop consumed tokens)
   Nothing                             -> []
 
+-- a | b | c
 parseAlt :: [Parser] -> (AST -> AST) -> Parser
 parseAlt parsers mapper tokens = do
   (ParseResult ast consumed) <- parseAny parsers tokens
   return $ ParseResult (mapper ast) consumed
 
+-- a | b | c
 parseAny :: [Parser] -> Parser
 parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
 
+-- a b c
 parseSeq :: [Parser] -> ([AST] -> AST) -> Parser
 parseSeq parsers combiner tokens = do
   results <- parseAll parsers tokens
@@ -250,6 +267,7 @@ parseSeq parsers combiner tokens = do
   then return $ ParseResult (combiner asts) consumed
   else Nothing
 
+-- a b c
 parseAll :: [Parser] -> [Token] -> Maybe [ParseResult]
 parseAll [] _ = Just []
 parseAll (p:ps) tokens = do
@@ -257,8 +275,18 @@ parseAll (p:ps) tokens = do
   rest <- parseAll ps (drop consumed tokens)
   return $ (ParseResult ast consumed) : rest
 
-parse :: [Token] -> Either String [AST]
-parse [] = Right []
-parse tokens = case parseLine tokens of
-  (Just (ParseResult ast consumed)) -> parse (drop consumed tokens) >>= (\rest -> return $ ast : rest)
-  Nothing                           -> Left $ "Unexpected token: " ++ (show . head) tokens
+-- 'Nothing' if not consumed tokens exist
+assertConsumed :: Parser -> Parser
+assertConsumed parser tokens = do
+  r@(ParseResult _ consumed) <- parser tokens
+  if null (drop consumed tokens)
+  then return r
+  else Nothing
+
+parse :: [Token] -> Either String AST
+parse tokens = case sequenceA results of
+  (Just r) -> Right $ ProgramNode $ map (\(ParseResult ast _) -> ast) r
+  Nothing  -> Left "Unexpected token"
+  where
+    lines = U.explode (==NewLine) tokens
+    results = map (assertConsumed parseLine) lines
