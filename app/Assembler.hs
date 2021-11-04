@@ -4,6 +4,7 @@ module Assembler (
 ) where
 
 import qualified Data.Char as Char
+import qualified Data.List as List
 import qualified Data.Monoid as Monoid
 import qualified VirtualMachine as VM (Op(..), Instruction, Command, instructionByOp)
 import qualified Util as U
@@ -284,9 +285,11 @@ assertConsumed parser tokens = do
   else Nothing
 
 parse :: [Token] -> Either String AST
-parse tokens = case sequenceA results of
-  (Just r) -> Right $ ProgramNode $ map (\(ParseResult ast _) -> ast) r
-  Nothing  -> Left "Unexpected token"
-  where
-    lines = U.explode (==NewLine) tokens
-    results = map (assertConsumed parseLine) lines
+parse tokens = do
+  let lines = U.explode (==NewLine) tokens
+  let results = map (assertConsumed parseLine) lines
+  let errors = filter ((==Nothing) . snd) (zipWith (,) [1..] $ results)
+  let errorMsg = "Parse error in line(s): " ++ (List.intercalate ", " $ map (show. fst) errors)
+  case sequenceA results of
+    (Just r) -> return $ ProgramNode $ map (\(ParseResult ast _) -> ast) r
+    Nothing  -> Left errorMsg
