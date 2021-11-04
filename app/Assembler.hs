@@ -159,6 +159,7 @@ data AST = EmptyNode
          | ParamNode AST
          | ParamsNode [AST]
          | InstructionNode AST AST
+         | LineNode AST AST
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -199,6 +200,9 @@ parseParam = parseAlt [parseInt, parseLabelRef] ParamNode
 
 parseInstr :: Parser
 parseInstr = parseSeq [parseOperator, parseMany0 parseParam ParamsNode] (\[op, ps] -> InstructionNode op ps)
+
+parseLine :: Parser
+parseLine = parseSeq [parseOptionally parseLabelDef, parseOptionally parseInstr] (\[label, instr] -> LineNode label instr)
 
 mapAST :: Parser -> (AST -> AST) -> Parser
 mapAST parser mapper tokens = do
@@ -260,5 +264,5 @@ parse tokens = case parsers tokens of
 
 parsers :: Parser
 parsers = parseAny
-  [ parseInstr
+  [ parseLine
   ]
