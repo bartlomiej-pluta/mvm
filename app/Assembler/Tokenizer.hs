@@ -1,8 +1,6 @@
-module Assembler.Tokenizer (
-  Token(..),
-  tokenize
-) where
+module Assembler.Tokenizer where
 
+import qualified Data.List as List
 import qualified Data.Char as Char
 import qualified Data.Monoid as Monoid
 import qualified VirtualMachine as VM
@@ -40,9 +38,13 @@ operatorTokenizer :: VM.Op -> Tokenizer
 operatorTokenizer op input = keywordTokenizer False (U.toLowerCase . show $ op) (Operator op) input
 
 tokenizeOperators :: Tokenizer
-tokenizeOperators = anyTokenizer $ map operatorTokenizer [VM.Push ..]
+tokenizeOperators = anyTokenizer $ map operatorTokenizer ops
+  where
+    ops = List.sortBy cmp [VM.Nop ..]
+    cmp x y = (length . show) y `compare` (length . show) x
 
 tokenizeIdentifier :: Tokenizer
+tokenizeIdentifier [] = Nothing
 tokenizeIdentifier input@(x:_) = if null identifier || (not . Char.isAlpha) x
   then Nothing
   else Just $ TokenizeResult (Identifier identifier) (length identifier)
@@ -105,19 +107,21 @@ tokenizeComment (x:xs) = if x == ';'
 
 type SeparatorPredicate = Char -> Bool
 sepTokenizer :: SeparatorPredicate -> Tokenizer -> Tokenizer
+sepTokenizer _ _ [] = Nothing
 sepTokenizer pred tokenizer input = do
-  (TokenizeResult token consumed) <- tokenizer input
+  result@(TokenizeResult token consumed) <- tokenizer input
   let next = drop consumed input
-  let (isSep, consumed') = if null next 
+  let (isSep, _) =  if null next 
                            then (True, 0)
                            else if pred . head $ next
                              then (True, 1)
                              else (False, 0)
   if isSep
-  then return $ TokenizeResult token (consumed + consumed')
+  then return $ result
   else Nothing
 
 anyTokenizer :: [Tokenizer] -> Tokenizer
+anyTokenizer _ [] = Nothing
 anyTokenizer tokenizers input = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA tokenizers input
 
 tokenize :: String -> Either String [Token]
@@ -138,9 +142,9 @@ tokenizers = anyTokenizer
   [ keywordTokenizer False "\n" NewLine
   , tokenizeWhitespace
   , tokenizeComment
-  , tokenizeOperators
-  , tokenizeHex
-  , tokenizeDecimal
+  , sepTokenizer Char.isSpace tokenizeOperators
+  , sepTokenizer Char.isSpace tokenizeHex
+  , sepTokenizer Char.isSpace tokenizeDecimal
   , tokenizeIdentifier
   , keywordTokenizer False ":" Colon
   , keywordTokenizer False "&" Ampersand

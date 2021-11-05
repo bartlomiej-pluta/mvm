@@ -23,7 +23,9 @@ extra-source-files: CHANGELOG.md
 executable MVM
     main-is:          Main.hs
 
-    -- Modules included in this executable, other than Main.
+    ghc-options: -Wall
+    
+    -- Modules included in this executable, other than Main.    
     other-modules:
       VirtualMachine
       Assembler.Tokenizer
@@ -36,5 +38,29 @@ executable MVM
       base ^>=4.15.0.0,
       bytestring ^>=0.11.0.0,
       containers ^>=0.6.4.1
+      
     hs-source-dirs:   app
     default-language: Haskell2010
+  
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      app
+      test
+  ghc-options: -Wall
+  build-depends:
+      base ^>=4.15.0.0,
+      bytestring ^>=0.11.0.0,
+      containers ^>=0.6.4.1
+    , hspec ==2.*
+  other-modules:      
+      Assembler.TokenizerSpec  
+
+      VirtualMachine
+      Assembler.Tokenizer
+      Assembler.Parser
+      Util          
+        
+  default-language: Haskell2010
+  build-tool-depends: hspec-discover:hspec-discover == 2.*
