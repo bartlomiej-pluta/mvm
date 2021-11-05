@@ -250,7 +250,7 @@ spec = do
       let (Just (TokenizeResult _ consumedChars)) = sepTokenizer ('-'==) tokenizer input
       consumedChars `shouldBe` 3
     it "supports empty input irrespective of wrapped tokenizer" $ do
-      let input = ""      
+      let input = ""
       let tokenizer _ = success Colon 3 -- MOCK: tokenizer returns Just even though the input is empty
       sepTokenizer ('-'==) tokenizer input `shouldBe` Nothing  
     
@@ -358,7 +358,9 @@ spec = do
     it "accepts 'call &sum NL" $
       tokenize "call &sum \n" `shouldBe` Right [Operator Call, Ampersand, Identifier "sum", NewLine]      
     it "rejects '4push'" $
-      tokenize "4push" `shouldBe` Left "Unknown token: 4push"    
+      tokenize "4push" `shouldBe` Left "Unknown token: 4push"  
+    it "supports empty input" $ 
+      tokenize "" `shouldBe` Right []  
     it "interprets example #1" $ do
       let input = "main: ; here we define some main label\n\
                 \      push 7    ; we push 7 to the stack\n\

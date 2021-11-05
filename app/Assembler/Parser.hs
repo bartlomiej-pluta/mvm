@@ -1,7 +1,4 @@
-module Assembler.Parser (
-  AST,
-  parse
-) where
+module Assembler.Parser where
 
 import qualified Data.List as List
 import qualified Data.Monoid as Monoid
@@ -77,6 +74,7 @@ parseLine :: Parser
 parseLine = parseSeq [parseOptionally parseLabelDef, parseOptionally parseInstr] (\[label, instr] -> Line label instr)
 
 mapAST :: Parser -> (AST -> AST) -> Parser
+mapAST _ _ [] = Nothing
 mapAST parser mapper tokens = do
   (ParseResult ast consumed) <- parser tokens
   return $ ParseResult (mapper ast) consumed
@@ -116,10 +114,12 @@ parseAlt parsers mapper tokens = do
 
 -- a | b | c
 parseAny :: [Parser] -> Parser
+parseAny _ [] = Nothing
 parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
 
 -- a b c
 parseSeq :: [Parser] -> ([AST] -> AST) -> Parser
+parseSeq _ _ [] = Nothing
 parseSeq parsers combiner tokens = do
   results <- parseAll parsers tokens
   let consumed = sum $ map (\(ParseResult _ c) -> c) results
@@ -138,6 +138,7 @@ parseAll (p:ps) tokens = do
 
 -- 'Nothing' if not consumed tokens exist
 assertConsumed :: Parser -> Parser
+assertConsumed _ [] = Nothing
 assertConsumed parser tokens = do
   r@(ParseResult _ consumed) <- parser tokens
   if null (drop consumed tokens)

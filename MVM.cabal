@@ -24,7 +24,7 @@ executable MVM
     main-is:          Main.hs
 
     ghc-options: -Wall
-    
+
     -- Modules included in this executable, other than Main.    
     other-modules:
       VirtualMachine
@@ -56,6 +56,7 @@ test-suite spec
     , hspec ==2.*
   other-modules:      
       Assembler.TokenizerSpec  
+      Assembler.ParserSpec
 
       VirtualMachine
       Assembler.Tokenizer
