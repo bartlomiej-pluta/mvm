@@ -31,6 +31,7 @@ executable MVM
       Assembler.Tokenizer
       Assembler.Parser
       Assembler.Emitter
+      Assembler.Compiler
       Util
 
     -- LANGUAGE extensions used by modules in this package.
