@@ -6,10 +6,12 @@ import qualified VirtualMachine as VM
 
 import Assembler.Compiler (compile)
 
+import Control.Monad.Trans.Except
+
 
 run :: String -> IO ()
 run input = case compile input of
-  (Right bytes) -> print $ VM.run VM.empty (B.pack bytes)
+  (Right bytes) -> runExceptT (VM.run VM.empty (B.pack bytes)) >>= print >> return ()
   (Left err) -> putStrLn err
 
 main :: IO ()

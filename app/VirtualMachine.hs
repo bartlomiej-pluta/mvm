@@ -12,7 +12,10 @@ module VirtualMachine (
 
 import Data.Word (Word8)
 import Data.Foldable (toList)
-import Data.Char (toLower, toUpper)
+import Data.Char (chr, toLower, toUpper)
+
+import Control.Monad.Trans (liftIO, lift)
+import Control.Monad.Trans.Except (ExceptT(..), runExceptT, except)
 
 import qualified Data.Map as M
 import qualified Data.Sequence as S
@@ -49,6 +52,8 @@ data Op = Nop  -- 0x00
         | Jge  -- 0x13
         | Jle  -- 0x14
         | Ld   -- 0x15
+        | In   -- 0x16
+        | Out  -- 0x17
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 type Args = [Int]
@@ -62,7 +67,7 @@ data Instruction = Simple     { _op        :: Op
                               } 
                    | Complex  { _op        :: Op
                               , _noParams  :: Int
-                              , _cAction   :: VM -> Args -> Either String VM
+                              , _cAction   :: VM -> Args -> ExceptT String IO VM
                               } 
 
 data Command = Command { _instr  :: Instruction
@@ -88,23 +93,30 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Simple  { _op = Div,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
                , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
-               , Complex { _op = Halt, _noParams = 0, _cAction = (\vm _   -> Right $ vm { _halt = True })                          }
-               , Complex { _op = Jmp,  _noParams = 1, _cAction = (\vm [x] -> Right $ vm { _pc = x})                                }
+               , Complex { _op = Halt, _noParams = 0, _cAction = (\vm _   -> except $ Right $ vm { _halt = True })                 }
+               , Complex { _op = Jmp,  _noParams = 1, _cAction = (\vm [x] -> except $ Right $ vm { _pc = x})                       }
                , Complex { _op = Je,   _noParams = 1, _cAction = jumpIf (==)                                                       }
                , Complex { _op = Jne,  _noParams = 1, _cAction = jumpIf (/=)                                                       }
                , Complex { _op = Jg,   _noParams = 1, _cAction = jumpIf (>)                                                        }
                , Complex { _op = Jl,   _noParams = 1, _cAction = jumpIf (<)                                                        }
                , Complex { _op = Jge,  _noParams = 1, _cAction = jumpIf (>=)                                                       }
                , Complex { _op = Jle,  _noParams = 1, _cAction = jumpIf (<=)                                                       }
+               , Complex { _op = Out,  _noParams = 0, _cAction = output                                                            }
                ]
 
-jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> Either String VM
-jumpIf _ _ [] = Left $ "Address expected"
-jumpIf _ _ (_:_:_) = Left $ "Multiple parameters are not supported by jmp* instructions"
-jumpIf predicate vm [addr] = Right $ vm { _pc = pc }
+jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> ExceptT String IO VM
+jumpIf _ _ [] = except $ Left $ "Address expected"
+jumpIf _ _ (_:_:_) = except $ Left $ "Multiple parameters are not supported by jmp* instructions"
+jumpIf predicate vm [addr] = except $ Right $ vm { _pc = pc }
   where
     (top:_) = toList . _stack $ vm
     pc = if top `predicate` 0 then addr else _pc vm + 1
+
+output :: VM -> Args -> ExceptT String IO VM
+output vm _ = do
+  let char = map chr $ toList $ S.take 1 $ _stack vm
+  liftIO $ putStr char
+  return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
 
 instructionByOp :: M.Map Op Instruction
 instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions
@@ -133,18 +145,18 @@ parseCommand (opByte:xs) = do
   let params = map fromIntegral $ take paramsNumber xs :: [Int]
   return (Command instruction params, drop paramsNumber xs)
 
-interpret :: [Command] -> VM -> Either String VM
-interpret _ vm@(VM _ _ _ True) = Right $ vm
+interpret :: [Command] -> VM -> ExceptT String IO VM
+interpret _ vm@(VM _ _ _ True) = except $ Right $ vm
 interpret cmds vm = do
   vm' <- interpretCommand cmds vm
   interpret cmds vm'
 
-interpretCommand :: [Command] -> VM -> Either String VM
-interpretCommand [] _ = Left $ "Empty code"
+interpretCommand :: [Command] -> VM -> ExceptT String IO VM
+interpretCommand [] _ = except $ Left $ "Empty code"
 interpretCommand cmds vm@(VM pc _ _ _)
-  | pc >= length cmds = Right $ vm { _halt = True }
+  | pc >= length cmds = except $ Right $ vm { _halt = True }
   | otherwise         = case instr of
-                          (Simple _ _ _ _) -> interpretSimple vm cmd
+                          (Simple _ _ _ _) -> except $ interpretSimple vm cmd
                           (Complex _ _ _)    -> interpretComplex vm cmd
                           where cmd@(Command instr _) = cmds !! pc
 
@@ -158,9 +170,9 @@ interpretSimple vm (Command (Simple _ _ noPops operation) args) = vm'
                                        })
 interpretSimple _ _ = Left "Unknown operation"
 
-interpretComplex :: VM -> Command -> Either String VM
+interpretComplex :: VM -> Command -> ExceptT String IO VM
 interpretComplex vm (Command (Complex _ _ operation) args) = operation vm args
-interpretComplex _ _ = Left "Unknown operation"
+interpretComplex _ _ = except $ Left "Unknown operation"
 
-run :: VM -> B.ByteString -> Either String VM
-run vm code = parse code >>= flip interpret vm
+run :: VM -> B.ByteString -> ExceptT String IO VM
+run vm code = return code >>= (except . parse) >>= flip interpret vm
