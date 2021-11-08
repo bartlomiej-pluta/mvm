@@ -27,25 +27,30 @@ emitLabelDef (LabelDef label) = do
   let current = length (_beans ctx)
   put ctx { _labels = M.insert label current labels }
   return ()
+emitLabelDef _ = return()
 
 emitParam :: Emitter
 emitParam (Param (Integer x)) = emitByte $ fromIntegral $ x
 emitParam (Param (LabelRef label)) = emitBean $ Reference $ label
+emitParam _ = return()
 
 emitInstr :: Emitter
 emitInstr (Instruction (Operator op) Empty) = emitByte $ fromIntegral . fromEnum $ op
 emitInstr (Instruction (Operator op) (Params params)) = do
   emitByte $ fromIntegral . fromEnum $ op
-  mapM emitParam params 
+  mapM_ emitParam params 
   return ()
+emitInstr _ = return()
 
 emitLine :: Emitter
 emitLine (Line labelDef Empty) = emitLabelDef labelDef
 emitLine (Line Empty instr) = emitInstr instr
 emitLine (Line labelDef instr) = emitLabelDef labelDef >> emitInstr instr >> return ()
+emitLine _ = return()
 
 emitProgram :: Emitter
 emitProgram (Program progLines) = mapM emitLine progLines >> return ()
+emitProgram _ = return()
 
 emitByte :: Word8 -> State Context ()
 emitByte byte = emitBean $ Byte $ byte
@@ -62,7 +67,7 @@ resolveLabels labels beans = sequence $ foldr folder [] beans
     folder b acc = (resolveLabel labels b) : acc
 
 resolveLabel :: M.Map String Int -> Bean -> Either String Bean
-resolveLabel labels b@(Byte _) = Right b
+resolveLabel _ b@(Byte _) = Right b
 resolveLabel labels (Reference label) = case M.lookup label labels of
     (Just t) -> Right . Byte . fromIntegral $ t
     Nothing  -> Left $ "Label '" ++ label ++ "' is not defined"  
