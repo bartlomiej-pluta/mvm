@@ -97,6 +97,8 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                ]
 
 jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> Either String VM
+jumpIf _ _ [] = Left $ "Address expected"
+jumpIf _ _ (_:_:_) = Left $ "Multiple parameters are not supported by jmp* instructions"
 jumpIf predicate vm [addr] = Right $ vm { _pc = pc }
   where
     (top:_) = toList . _stack $ vm

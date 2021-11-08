@@ -111,12 +111,7 @@ sepTokenizer _ _ [] = Nothing
 sepTokenizer predicate tokenizer input = do
   result@(TokenizeResult _ consumed) <- tokenizer input
   let next = drop consumed input
-  let (isSep, _) =  if null next 
-                           then (True, 0)
-                           else if predicate . head $ next
-                             then (True, 1)
-                             else (False, 0)
-  if isSep
+  if null next || (predicate . head $ next)
   then return $ result
   else Nothing
 

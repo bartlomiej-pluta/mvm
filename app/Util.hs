@@ -63,6 +63,7 @@ controlChar x = case x of
 explode :: (Foldable f) => (a -> Bool) -> f a -> [[a]]
 explode predicate xs = filter (not . null) $ foldr split [[]] xs 
   where 
+    split _ [] = []
     split y (ys:yss) 
       | predicate y = []:ys:yss
-      | otherwise   = (y:ys):yss
+      | otherwise   = (y:ys):yss    
