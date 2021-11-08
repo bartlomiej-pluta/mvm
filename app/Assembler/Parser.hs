@@ -1,13 +1,15 @@
 module Assembler.Parser where
 
-import qualified Data.List as List
-import qualified Data.Monoid as Monoid
-import qualified VirtualMachine as VM
-import qualified Assembler.Tokenizer as T
-import qualified Util as U
+import Data.List (intercalate)
+import Data.Monoid (First(..))
+
+import qualified Assembler.Tokenizer as T (Token(..))
+import VirtualMachine (Op)
+import Util (explode)
+
 
 data AST = Empty
-         | Operator VM.Op 
+         | Operator Op 
          | Integer Int
          | Identifier String
          | Colon
@@ -115,7 +117,7 @@ parseAlt parsers mapper tokens = do
 -- a | b | c
 parseAny :: [Parser] -> Parser
 parseAny _ [] = Nothing
-parseAny parsers tokens = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA parsers tokens
+parseAny parsers tokens = getFirst . mconcat . map First $ sequenceA parsers tokens
 
 -- a b c
 parseSeq :: [Parser] -> ([AST] -> AST) -> Parser
@@ -147,10 +149,10 @@ assertConsumed parser tokens = do
 
 parse :: [T.Token] -> Either String AST
 parse tokens = do
-  let codeLines = U.explode (==T.NewLine) tokens
+  let codeLines = explode (==T.NewLine) tokens
   let results = map (assertConsumed parseLine) codeLines
   let errors = filter ((==Nothing) . snd) $ zipWith (,) codeLines $ results 
-  let errorMsg = "Parse error(s):\n" ++ (List.intercalate "\n" $ map (show . fst) errors)
+  let errorMsg = "Parse error(s):\n" ++ (intercalate "\n" $ map (show . fst) errors)
   case sequenceA results of
     (Just r) -> return $ Program $ map (\(ParseResult ast _) -> ast) r
     Nothing  -> Left errorMsg

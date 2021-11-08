@@ -1,12 +1,14 @@
 module Assembler.Tokenizer where
 
-import qualified Data.List as List
-import qualified Data.Char as Char
-import qualified Data.Monoid as Monoid
-import qualified VirtualMachine as VM
-import qualified Util as U
+import Data.List (sortBy)
+import Data.Char (ord, isDigit, isSpace, isAlpha, isAlphaNum, isHexDigit)
+import Data.Monoid (First(..))
 
-data Token = Operator VM.Op 
+import VirtualMachine (Op(..))
+import Util (toLowerCase, controlChar, unescape)
+
+
+data Token = Operator Op 
            | IntLiteral Int 
            | StringLiteral String
            | Identifier String
@@ -30,31 +32,31 @@ keywordTokenizer cs kwd token input
   | otherwise  = Nothing
   where
     len = length kwd
-    mapper = if cs then id else U.toLowerCase
+    mapper = if cs then id else toLowerCase
     zipped = zipWith (==) (mapper kwd) (mapper . take len $ input)
     matches = and zipped && len == length zipped
 
-operatorTokenizer :: VM.Op -> Tokenizer
-operatorTokenizer op input = keywordTokenizer False (U.toLowerCase . show $ op) (Operator op) input
+operatorTokenizer :: Op -> Tokenizer
+operatorTokenizer op input = keywordTokenizer False (toLowerCase . show $ op) (Operator op) input
 
 tokenizeOperators :: Tokenizer
 tokenizeOperators = anyTokenizer $ map operatorTokenizer ops
   where
-    ops = List.sortBy cmp [VM.Nop ..]
+    ops = sortBy cmp [Nop ..]
     cmp x y = (length . show) y `compare` (length . show) x
 
 tokenizeIdentifier :: Tokenizer
 tokenizeIdentifier [] = Nothing
-tokenizeIdentifier input@(x:_) = if null identifier || (not . Char.isAlpha) x
+tokenizeIdentifier input@(x:_) = if null identifier || (not . isAlpha) x
   then Nothing
   else Just $ TokenizeResult (Identifier identifier) (length identifier)
   where
-    identifier = takeWhile (or . sequenceA [Char.isAlphaNum, (=='_')]) input
+    identifier = takeWhile (or . sequenceA [isAlphaNum, (=='_')]) input
 
 tokenizeWhitespace :: Tokenizer
 tokenizeWhitespace [] = Nothing
 tokenizeWhitespace (x:_)
-  | Char.isSpace x = Just $ TokenizeResult WhiteSpace 1
+  | isSpace x = Just $ TokenizeResult WhiteSpace 1
   | otherwise      = Nothing
 
 tokenizeDecimal :: Tokenizer
@@ -65,7 +67,7 @@ tokenizeDecimal input = if null numberStr
   where    
     number = read numberStr
     len = length numberStr
-    numberStr = takeWhile Char.isDigit input
+    numberStr = takeWhile isDigit input
 
 tokenizeHex :: Tokenizer
 tokenizeHex [] = Nothing
@@ -76,17 +78,17 @@ tokenizeHex input = if isPrefix && len > 0
     isPrefix = take 2 input == "0x"
     number = read . ("0x"++) $ numberStr
     len = length numberStr
-    numberStr = takeWhile Char.isHexDigit (drop 2 input)
+    numberStr = takeWhile isHexDigit (drop 2 input)
 
 tokenizeChar :: Tokenizer
-tokenizeChar ('\'':'\\':x:'\'':_) = U.controlChar x >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
-tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . Char.ord $ x) 3      
+tokenizeChar ('\'':'\\':x:'\'':_) = controlChar x >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
+tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . ord $ x) 3      
 tokenizeChar _ = Nothing
 
 tokenizeString :: Tokenizer
 tokenizeString ('"':xs) = do
     string <- extractString xs
-    unescaped <- U.unescape string
+    unescaped <- unescape string
     return $ TokenizeResult (StringLiteral unescaped) (length string + 2)  
   where
     extractString [] = Nothing
@@ -117,7 +119,7 @@ sepTokenizer predicate tokenizer input = do
 
 anyTokenizer :: [Tokenizer] -> Tokenizer
 anyTokenizer _ [] = Nothing
-anyTokenizer tokenizers input = Monoid.getFirst . Monoid.mconcat . map Monoid.First $ sequenceA tokenizers input
+anyTokenizer tokenizers input = getFirst . mconcat . map First $ sequenceA tokenizers input
 
 tokenize :: String -> Either String [Token]
 tokenize [] = Right []
@@ -130,9 +132,9 @@ tokenize input = tokens >>= (\t -> Right $ filter tokenFilter t)
       [ keywordTokenizer False "\n" NewLine
       , tokenizeWhitespace
       , tokenizeComment
-      , sepTokenizer Char.isSpace tokenizeOperators
-      , sepTokenizer Char.isSpace tokenizeHex
-      , sepTokenizer Char.isSpace tokenizeDecimal
+      , sepTokenizer isSpace tokenizeOperators
+      , sepTokenizer isSpace tokenizeHex
+      , sepTokenizer isSpace tokenizeDecimal
       , tokenizeIdentifier
       , keywordTokenizer False ":" Colon
       , keywordTokenizer False "&" Ampersand

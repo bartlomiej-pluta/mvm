@@ -10,14 +10,16 @@ module VirtualMachine (
   run
 ) where
 
-import Data.Word
-import Data.Foldable
-import qualified Data.Char as Char
-import qualified Data.Map as Map
+import Data.Word (Word8)
+import Data.Foldable (toList)
+import Data.Char (toLower, toUpper)
+
+import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.ByteString as B
 
-import qualified Util as U
+import Util (byteStr, bytesStr)
+
 
 data VM = VM { _pc :: Int
              , _fp :: Int
@@ -104,14 +106,14 @@ jumpIf predicate vm [addr] = Right $ vm { _pc = pc }
     (top:_) = toList . _stack $ vm
     pc = if top `predicate` 0 then addr else _pc vm + 1
 
-instructionByOp :: Map.Map Op Instruction
-instructionByOp = Map.fromList $ map (\i -> (_op i, i)) instructions
+instructionByOp :: M.Map Op Instruction
+instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions
 
 toOp :: String -> Op
 toOp = read . capitalize
   where capitalize :: String -> String
         capitalize [] = []
-        capitalize (x:xs) = Char.toUpper x : map Char.toLower xs
+        capitalize (x:xs) = toUpper x : map toLower xs
 
 parse :: B.ByteString -> Either String [Command]
 parse = parseCommands . B.unpack
@@ -120,13 +122,13 @@ parseCommands :: [Word8] -> Either String [Command]
 parseCommands [] = Right []
 parseCommands code@(x:_) = case parseCommand code of
   Just (cmd, rest) -> parseCommands rest >>= (\r -> return $ cmd : r)                              
-  Nothing          -> Left $ "Unparseable byte: " ++ U.byteStr x ++ "\nIn following sequence:\n" ++ U.bytesStr 16 code
+  Nothing          -> Left $ "Unparseable byte: " ++ byteStr x ++ "\nIn following sequence:\n" ++ bytesStr 16 code
 
 parseCommand :: [Word8] -> Maybe (Command, [Word8])
 parseCommand [] = Nothing
 parseCommand (opByte:xs) = do
   let op = toEnum . fromIntegral $ opByte :: Op
-  instruction <- Map.lookup op instructionByOp
+  instruction <- M.lookup op instructionByOp
   let paramsNumber = _noParams instruction
   let params = map fromIntegral $ take paramsNumber xs :: [Int]
   return (Command instruction params, drop paramsNumber xs)

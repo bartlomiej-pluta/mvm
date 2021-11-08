@@ -10,12 +10,13 @@ module Util (
 
 import Prelude hiding (head)
 import Data.List hiding (head)
-import Data.Word
+import Data.Word (Word8)
+import Data.Char (chr, toLower)
 import Numeric (showHex)
-import qualified Data.Char as Char
+
 
 toLowerCase :: String -> String
-toLowerCase = map Char.toLower
+toLowerCase = map toLower
 
 bytesStr :: Int -> [Word8] -> String
 bytesStr sparse = insertAtN '\n' (sparse*3) . intercalate " " . map byteStr
@@ -39,7 +40,7 @@ head (x:_) = Just x
 
 unescape :: String -> Maybe String
 unescape ('\\':x:xs) = do
-  cc <- fmap Char.chr $ controlChar x
+  cc <- fmap chr $ controlChar x
   rest <- unescape xs
   return $ cc : rest
 unescape (x:xs) = unescape xs >>= (\rest -> return $ x : rest)
