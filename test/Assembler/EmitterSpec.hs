@@ -3,14 +3,21 @@ module Assembler.EmitterSpec where
 import Test.Hspec
 
 import qualified Data.Map as M
-
+import Control.Monad.State (execState)
 
 import Assembler.Tokenizer (tokenize)
-import Assembler.Parser (parse)
-import Assembler.Emitter
+import Assembler.Parser (AST(..), parse)
+import Assembler.Emitter as E
+import VirtualMachine (Op(..))
 
 spec :: Spec
 spec = do
+  describe "emitLabelDef" $ do
+    it "inserts label definition to the context" $ do
+      let ctx = E.empty
+      let input = LabelDef "main"
+      execState (emitLabelDef input) ctx `shouldBe` ctx { _labels = M.fromList[("main", 0)] }
+      
   describe "resolveLabels" $ do
     it "replaces reference with actual byte number" $ do
       let beans = [ Byte 1, Byte 2, Reference "main", Byte 4 ]
@@ -20,6 +27,26 @@ spec = do
       let beans = [ Byte 1, Byte 2, Reference "not_existing_label", Byte 4 ]
       let labels = M.fromList [("main", 3)]
       resolveLabels labels beans `shouldBe` Left "Label 'not_existing_label' is not defined"
+
+  describe "emitParam" $ do
+    it "emits byte for integer literal" $ do
+      let ctx = E.empty
+      let input = Param (Integer 4)
+      execState (emitParam input) ctx `shouldBe` ctx { _beans = [Byte 0x04] }
+    it "emits reference mark for label reference" $ do
+      let ctx = E.empty
+      let input = Param (LabelRef "main")
+      execState (emitParam input) ctx `shouldBe` ctx { _beans = [Reference "main"] }
+
+  describe "emitInstr" $ do
+    it "emits byte for no-param instruction" $ do
+      let ctx = E.empty
+      let input = Instruction (Operator Halt) Empty
+      execState (emitInstr input) ctx `shouldBe` ctx { _beans = [Byte 0x01] }
+    it "emits bytes for 2-param instruction" $ do
+      let ctx = E.empty
+      let input = Instruction (Operator Push) (Params [(Param (Integer 11)), (Param (LabelRef "main"))])
+      execState (emitInstr input) ctx `shouldBe` ctx { _beans = [Byte 0x02, Byte 0x0B, Reference "main"] }
 
   describe "emit" $ do
     it "label resolution works" $ do
