@@ -14,8 +14,8 @@ import Data.Word (Word8)
 import Data.Foldable (toList)
 import Data.Char (chr, toLower, toUpper)
 
-import Control.Monad.Trans (liftIO, lift)
-import Control.Monad.Trans.Except (ExceptT(..), runExceptT, except)
+import Control.Monad.Trans (liftIO)
+import Control.Monad.Trans.Except (ExceptT(..), except)
 
 import qualified Data.Map as M
 import qualified Data.Sequence as S
@@ -67,7 +67,8 @@ data Instruction = Simple     { _op        :: Op
                               } 
                    | Complex  { _op        :: Op
                               , _noParams  :: Int
-                              , _cAction   :: VM -> Args -> ExceptT String IO VM
+                              , _noPops    :: Int
+                              , _cAction   :: VM -> Args -> Pops -> ExceptT String IO VM
                               } 
 
 data Command = Command { _instr  :: Instruction
@@ -93,29 +94,27 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Simple  { _op = Div,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
                , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
-               , Complex { _op = Halt, _noParams = 0, _cAction = (\vm _   -> except $ Right $ vm { _halt = True })                 }
-               , Complex { _op = Jmp,  _noParams = 1, _cAction = (\vm [x] -> except $ Right $ vm { _pc = x})                       }
-               , Complex { _op = Je,   _noParams = 1, _cAction = jumpIf (==)                                                       }
-               , Complex { _op = Jne,  _noParams = 1, _cAction = jumpIf (/=)                                                       }
-               , Complex { _op = Jg,   _noParams = 1, _cAction = jumpIf (>)                                                        }
-               , Complex { _op = Jl,   _noParams = 1, _cAction = jumpIf (<)                                                        }
-               , Complex { _op = Jge,  _noParams = 1, _cAction = jumpIf (>=)                                                       }
-               , Complex { _op = Jle,  _noParams = 1, _cAction = jumpIf (<=)                                                       }
-               , Complex { _op = Out,  _noParams = 0, _cAction = output                                                            }
+               , Complex { _op = Halt, _noParams = 0, _noPops = 1, _cAction = (\vm _ _   -> except $ Right $ vm { _halt = True })  }
+               , Complex { _op = Jmp,  _noParams = 1, _noPops = 1, _cAction = (\vm [x] _ -> except $ Right $ vm { _pc = x})        }
+               , Complex { _op = Je,   _noParams = 1, _noPops = 1, _cAction = jumpIf (==)                                          }
+               , Complex { _op = Jne,  _noParams = 1, _noPops = 1, _cAction = jumpIf (/=)                                          }
+               , Complex { _op = Jg,   _noParams = 1, _noPops = 1, _cAction = jumpIf (>)                                           }
+               , Complex { _op = Jl,   _noParams = 1, _noPops = 1, _cAction = jumpIf (<)                                           }
+               , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
+               , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
+               , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                ]
 
-jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> ExceptT String IO VM
-jumpIf _ _ [] = except $ Left $ "Address expected"
-jumpIf _ _ (_:_:_) = except $ Left $ "Multiple parameters are not supported by jmp* instructions"
-jumpIf predicate vm [addr] = except $ Right $ vm { _pc = pc }
-  where
-    (top:_) = toList . _stack $ vm
-    pc = if top `predicate` 0 then addr else _pc vm + 1
+jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> Pops -> ExceptT String IO VM
+jumpIf _ _ [] _  = except $ Left $ "Address expected"
+jumpIf _ _ _  [] = except $ Left $ "Empty stack - nothing to compare"
+jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
+  where pc = if top `predicate` 0 then addr else _pc vm + 1
 
-output :: VM -> Args -> ExceptT String IO VM
-output vm _ = do
-  let char = map chr $ toList $ S.take 1 $ _stack vm
-  liftIO $ putStr char
+output :: VM -> Args -> Pops -> ExceptT String IO VM
+output _ _ [] = except $ Left $ "Empty stack - nothing to output"
+output vm _ (char:_) = do
+  liftIO $ putStr $ [chr char]
   return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
 
 instructionByOp :: M.Map Op Instruction
@@ -156,8 +155,8 @@ interpretCommand [] _ = except $ Left $ "Empty code"
 interpretCommand cmds vm@(VM pc _ _ _)
   | pc >= length cmds = except $ Right $ vm { _halt = True }
   | otherwise         = case instr of
-                          (Simple _ _ _ _) -> except $ interpretSimple vm cmd
-                          (Complex _ _ _)    -> interpretComplex vm cmd
+                          (Simple _ _ _ _)  -> except $ interpretSimple vm cmd
+                          (Complex _ _ _ _) -> interpretComplex vm cmd
                           where cmd@(Command instr _) = cmds !! pc
 
 interpretSimple :: VM -> Command -> Either String VM
@@ -171,7 +170,9 @@ interpretSimple vm (Command (Simple _ _ noPops operation) args) = vm'
 interpretSimple _ _ = Left "Unknown operation"
 
 interpretComplex :: VM -> Command -> ExceptT String IO VM
-interpretComplex vm (Command (Complex _ _ operation) args) = operation vm args
+interpretComplex vm (Command (Complex _ _ noPops operation) args) = operation vm args pops
+  where
+    pops = toList . S.take noPops . _stack $ vm
 interpretComplex _ _ = except $ Left "Unknown operation"
 
 run :: VM -> B.ByteString -> ExceptT String IO VM
