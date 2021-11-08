@@ -54,6 +54,7 @@ data Op = Nop  -- 0x00
         | Ld   -- 0x15
         | In   -- 0x16
         | Out  -- 0x17
+        | Dbg  -- 0x18
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 type Args = [Int]
@@ -103,6 +104,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
                , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
+               , Complex { _op = Dbg,  _noParams = 0, _noPops = 0, _cAction = debug                                                }
                ]
 
 jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> Pops -> ExceptT String IO VM
@@ -116,6 +118,11 @@ output _ _ [] = except $ Left $ "Empty stack - nothing to output"
 output vm _ (char:_) = do
   liftIO $ putStr $ [chr char]
   return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
+
+debug :: VM -> Args -> Pops -> ExceptT String IO VM
+debug vm _ _ = do
+  liftIO $ print vm
+  return vm { _pc = _pc vm + 1 }
 
 instructionByOp :: M.Map Op Instruction
 instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions
