@@ -1,7 +1,6 @@
 module Assembler.ParserSpec where
 
 import Test.Hspec
-import Test.Hspec.QuickCheck
 
 import qualified Assembler.Tokenizer as T
 import Assembler.Parser

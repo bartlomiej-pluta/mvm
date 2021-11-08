@@ -21,14 +21,14 @@ bytesStr :: Int -> [Word8] -> String
 bytesStr sparse = insertAtN '\n' (sparse*3) . intercalate " " . map byteStr
 
 byteStr :: Word8 -> String
-byteStr = pad '0' 2 . (flip showHex) "" . fromIntegral
+byteStr = pad '0' 2 . (flip showHex) "" . (fromIntegral :: Word8 -> Integer)
 
 insertAtN :: a -> Int -> [a] -> [a]
 insertAtN c n xs = insertAtN' n xs
   where
-    insertAtN' 0 xs = c : insertAtN' n xs
+    insertAtN' 0 ys = c : insertAtN' n ys
     insertAtN' _ [] = []
-    insertAtN' m (x:xs) = x : insertAtN' (m-1) xs
+    insertAtN' m (y:ys) = y : insertAtN' (m-1) ys
 
 pad :: Char -> Int -> String -> String
 pad char width string = replicate (width - length string) char ++ string
@@ -61,8 +61,8 @@ controlChar x = case x of
     _    -> Nothing
 
 explode :: (Foldable f) => (a -> Bool) -> f a -> [[a]]
-explode pred xs = filter (not . null) $ foldr split [[]] xs 
+explode predicate xs = filter (not . null) $ foldr split [[]] xs 
   where 
     split y (ys:yss) 
-      | pred y    = []:ys:yss
-      | otherwise = (y:ys):yss
+      | predicate y = []:ys:yss
+      | otherwise   = (y:ys):yss

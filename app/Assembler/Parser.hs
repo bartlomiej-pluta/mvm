@@ -38,7 +38,7 @@ parseInt _                      = Nothing
 
 -- ID := [alnum, '_']+
 parseIdentifier :: Parser
-parseIdentifier ((T.Identifier id):_) = Just $ ParseResult (Identifier id) 1
+parseIdentifier ((T.Identifier iden):_) = Just $ ParseResult (Identifier iden) 1
 parseIdentifier _                     = Nothing
 
 -- ':'
@@ -54,12 +54,12 @@ parseAmpersand _                 = Nothing
 -- label_def := ID ':'
 parseLabelDef :: Parser
 parseLabelDef = parseSeq [parseIdentifier, parseColon] combine
-  where combine = (\[(Identifier id), _] -> LabelDef id)
+  where combine = (\[(Identifier iden), _] -> LabelDef iden)
 
 -- label_ref := '&' ID
 parseLabelRef :: Parser
 parseLabelRef = parseSeq [parseAmpersand, parseIdentifier] combine
-  where combine = (\[_, (Identifier id)] -> LabelRef id)
+  where combine = (\[_, (Identifier iden)] -> LabelRef iden)
 
 -- param := INT | label_ref
 parseParam :: Parser
@@ -103,7 +103,7 @@ parseMany parser combiner tokens = if null asts
 -- a a a a a a a...
 parseGreedy :: Parser -> [T.Token] -> [ParseResult]
 parseGreedy parser tokens = case parser tokens of
-  (Just r@(ParseResult ast consumed)) -> r : parseGreedy parser (drop consumed tokens)
+  (Just r@(ParseResult _ consumed)) -> r : parseGreedy parser (drop consumed tokens)
   Nothing                             -> []
 
 -- a | b | c
@@ -147,9 +147,9 @@ assertConsumed parser tokens = do
 
 parse :: [T.Token] -> Either String AST
 parse tokens = do
-  let lines = U.explode (==T.NewLine) tokens
-  let results = map (assertConsumed parseLine) lines
-  let errors = filter ((==Nothing) . snd) $ zipWith (,) lines $ results 
+  let codeLines = U.explode (==T.NewLine) tokens
+  let results = map (assertConsumed parseLine) codeLines
+  let errors = filter ((==Nothing) . snd) $ zipWith (,) codeLines $ results 
   let errorMsg = "Parse error(s):\n" ++ (List.intercalate "\n" $ map (show . fst) errors)
   case sequenceA results of
     (Just r) -> return $ Program $ map (\(ParseResult ast _) -> ast) r

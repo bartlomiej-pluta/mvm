@@ -1,7 +1,6 @@
 module Assembler.TokenizerSpec where
 
 import Test.Hspec
-import Test.Hspec.QuickCheck
 import Numeric (showHex)
 import Data.Char (ord)
 

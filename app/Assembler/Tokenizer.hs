@@ -90,10 +90,10 @@ tokenizeString ('"':xs) = do
     return $ TokenizeResult (StringLiteral unescaped) (length string + 2)  
   where
     extractString [] = Nothing
-    extractString (x:xs)
-        | x == '"'  = Just []
-        | x == '\n' = Nothing
-        | otherwise = extractString xs >>= (\r -> return $ x : r)
+    extractString (y:ys)
+        | y == '"'  = Just []
+        | y == '\n' = Nothing
+        | otherwise = extractString ys >>= (\r -> return $ y : r)
 tokenizeString _  = Nothing
 
 tokenizeComment :: Tokenizer
@@ -108,12 +108,12 @@ tokenizeComment (x:xs) = if x == ';'
 type SeparatorPredicate = Char -> Bool
 sepTokenizer :: SeparatorPredicate -> Tokenizer -> Tokenizer
 sepTokenizer _ _ [] = Nothing
-sepTokenizer pred tokenizer input = do
-  result@(TokenizeResult token consumed) <- tokenizer input
+sepTokenizer predicate tokenizer input = do
+  result@(TokenizeResult _ consumed) <- tokenizer input
   let next = drop consumed input
   let (isSep, _) =  if null next 
                            then (True, 0)
-                           else if pred . head $ next
+                           else if predicate . head $ next
                              then (True, 1)
                              else (False, 0)
   if isSep
@@ -131,23 +131,21 @@ tokenize input = tokens >>= (\t -> Right $ filter tokenFilter t)
     tokens = case tokenizers input of
       (Just (TokenizeResult token chars)) -> tokenize (drop chars input) >>= (\rest -> return $ token : rest)
       Nothing                             -> Left $ "Unknown token: " ++ take 20 input
+    tokenizers = anyTokenizer
+      [ keywordTokenizer False "\n" NewLine
+      , tokenizeWhitespace
+      , tokenizeComment
+      , sepTokenizer Char.isSpace tokenizeOperators
+      , sepTokenizer Char.isSpace tokenizeHex
+      , sepTokenizer Char.isSpace tokenizeDecimal
+      , tokenizeIdentifier
+      , keywordTokenizer False ":" Colon
+      , keywordTokenizer False "&" Ampersand
+      , tokenizeChar
+      , tokenizeString
+      ]
 
 tokenFilter :: Token -> Bool
 tokenFilter (WhiteSpace) = False
 tokenFilter (Comment _)  = False
 tokenFilter _            = True
-
-tokenizers :: Tokenizer
-tokenizers = anyTokenizer
-  [ keywordTokenizer False "\n" NewLine
-  , tokenizeWhitespace
-  , tokenizeComment
-  , sepTokenizer Char.isSpace tokenizeOperators
-  , sepTokenizer Char.isSpace tokenizeHex
-  , sepTokenizer Char.isSpace tokenizeDecimal
-  , tokenizeIdentifier
-  , keywordTokenizer False ":" Colon
-  , keywordTokenizer False "&" Ampersand
-  , tokenizeChar
-  , tokenizeString
-  ]
