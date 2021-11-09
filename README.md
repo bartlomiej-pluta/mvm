@@ -28,3 +28,66 @@ List of available instructions:
 | ``0x16`` | ``IN``     | Read input from stdin                                                          |
 | ``0x17`` | ``OUT``    | Put top stack value to stdout as char                                          |
 | ``0x18`` | ``CLR x``  | Wipe out ``x`` values before the top value from the stack                      |
+
+## Example
+The `2*3+5` formula written as the MVM assembly code:
+```asm
+main: push 2
+      push 3
+      call &prd
+      clr 2
+      push 5
+      call &sum
+      clr 2
+      halt
+
+sum: ld 0
+     ld 1
+     add
+     ret
+
+prd: ld 0
+     ld 1
+     mul
+     ret
+```
+The result of execution with the `debug = True` flag:
+```
+VM {_pc = 0, _fp = -1, _stack = fromList [], _halt = False, _debug = True}
+0: Push 2
+VM {_pc = 2, _fp = -1, _stack = fromList [2], _halt = False, _debug = True}
+2: Push 3
+VM {_pc = 4, _fp = -1, _stack = fromList [3,2], _halt = False, _debug = True}
+4: Call 21
+VM {_pc = 21, _fp = 2, _stack = fromList [6,-1,3,2], _halt = False, _debug = True}
+21: Ld 0
+VM {_pc = 23, _fp = 2, _stack = fromList [3,6,-1,3,2], _halt = False, _debug = True}
+23: Ld 1
+VM {_pc = 25, _fp = 2, _stack = fromList [2,3,6,-1,3,2], _halt = False, _debug = True}
+25: Mul 
+VM {_pc = 26, _fp = 2, _stack = fromList [6,6,-1,3,2], _halt = False, _debug = True}
+26: Ret 
+VM {_pc = 6, _fp = -1, _stack = fromList [6,3,2], _halt = False, _debug = True}
+6: Clr 2
+VM {_pc = 8, _fp = -1, _stack = fromList [6], _halt = False, _debug = True}
+8: Push 5
+VM {_pc = 10, _fp = -1, _stack = fromList [5,6], _halt = False, _debug = True}
+10: Call 15
+VM {_pc = 15, _fp = 2, _stack = fromList [12,-1,5,6], _halt = False, _debug = True}
+15: Ld 0
+VM {_pc = 17, _fp = 2, _stack = fromList [5,12,-1,5,6], _halt = False, _debug = True}
+17: Ld 1
+VM {_pc = 19, _fp = 2, _stack = fromList [6,5,12,-1,5,6], _halt = False, _debug = True}
+19: Add 
+VM {_pc = 20, _fp = 2, _stack = fromList [11,12,-1,5,6], _halt = False, _debug = True}
+20: Ret 
+VM {_pc = 12, _fp = -1, _stack = fromList [11,5,6], _halt = False, _debug = True}
+12: Clr 2
+VM {_pc = 14, _fp = -1, _stack = fromList [11], _halt = False, _debug = True}
+14: Halt 
+
+
+Done:
+VM {_pc = 14, _fp = -1, _stack = fromList [11], _halt = True, _debug = True}
+
+```
