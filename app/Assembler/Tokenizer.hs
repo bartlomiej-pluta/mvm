@@ -4,7 +4,7 @@ import Data.List (sortBy)
 import Data.Char (ord, isDigit, isSpace, isAlpha, isAlphaNum, isHexDigit)
 import Data.Monoid (First(..))
 
-import VirtualMachine (Op(..))
+import VirtualMachine.VM (Op(..))
 import Util (toLowerCase, controlChar, unescape)
 
 

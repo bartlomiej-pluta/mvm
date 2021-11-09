@@ -4,7 +4,7 @@ import Test.Hspec
 
 import qualified Assembler.Tokenizer as T
 import Assembler.Parser
-import VirtualMachine
+import VirtualMachine.VM (Op(..))
 
 success :: AST -> Int -> Maybe ParseResult
 success ast consumed = Just $ ParseResult ast consumed

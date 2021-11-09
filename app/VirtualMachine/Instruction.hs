@@ -1,48 +1,15 @@
-module VirtualMachine where
-
-import qualified Data.Map as M
-import qualified Data.Sequence as S
-import qualified Data.ByteString as B
+module VirtualMachine.Instruction where
 
 import Data.Char (chr)
 import Data.Word (Word8)
-import Data.Foldable (toList)
-import Control.Monad.State (State, put, get, execState, evalState, runState)
 import Control.Monad.Trans (liftIO)
 import Control.Monad.Trans.Except (ExceptT, except, runExceptT)
+import Control.Monad.State (execState, evalState)
+import qualified Data.Map as M
+import qualified Data.Sequence as S
 
-data VM = VM { _pc :: Int
-             , _fp :: Int
-             , _stack :: S.Seq Int
-             , _halt :: Bool
-             } deriving (Show, Eq)
+import VirtualMachine.VM (VM(..), Op(..), push, pop, forward, getAt, getPc, getFp, getStackSize, setPc, setFp)
 
-data Op = Nop  -- 0x00 
-        | Halt -- 0x01
-        | Push -- 0x02
-        | Pop  -- 0x03
-        | Dup  -- 0x04
-        | Swap -- 0x05
-        | Add  -- 0x06
-        | Sub  -- 0x07
-        | Mul  -- 0x08
-        | Div  -- 0x09
-        | Neg  -- 0x0a
-        | Not  -- 0x0b
-        | Call -- 0x0c
-        | Ret  -- 0x0d
-        | Jmp  -- 0x0e
-        | Je   -- 0x0f
-        | Jne  -- 0x10
-        | Jg   -- 0x11
-        | Jl   -- 0x12
-        | Jge  -- 0x13
-        | Jle  -- 0x14
-        | Ld   -- 0x15
-        | In   -- 0x16
-        | Out  -- 0x17
-        | Dbg  -- 0x18
-        deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 type Params = [Int]
 type Pops = [Int]
@@ -58,13 +25,6 @@ instance Show Instruction where
 data Unit = Instr { _instr :: Instruction }
           | Byte  { _byte  :: Word8       }
           deriving (Show)
-
-empty :: VM
-empty = VM { _pc     = 0
-           , _fp     = -1
-           , _stack  = S.empty
-           , _halt   = False
-           }
 
 instructions :: [Instruction]
 instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\_ _      -> S.empty)                               }
@@ -91,6 +51,9 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                , Complex { _op = Dbg,  _noParams = 0, _noPops = 0, _cAction = debug                                                }
                ]
+
+instructionByOp :: M.Map Op Instruction
+instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions    
 
 call :: VM -> Params -> Pops -> ExceptT String IO VM
 call vm (addr:_) _ = except $ return $ flip execState vm $ do  
@@ -134,136 +97,3 @@ output vm _ (char:_) = do
   liftIO $ putStr $ [chr char]
   return (execState (forward 1) vm)  
 output _ _ [] = except $ Left $ "Empty stack - nothing to output"
-
---------------------------------------------------------------------------
-
-push :: [Int] -> State VM ()
-push = pushS . S.fromList
-
-pushS :: S.Seq Int -> State VM ()
-pushS numbers = do
-  vm <- get
-  put vm { _stack = numbers <> _stack vm  }
-  return ()
-
-pop :: Int -> State VM [Int]
-pop count = do
-  vm <- get
-  let stack = _stack vm
-  put vm { _stack = S.drop count $ stack }
-  return $ toList $ S.take count $ stack
-
-getAt :: Int -> String -> ExceptT String (State VM) Int
-getAt index err = do
-  vm <- get
-  let stack = _stack vm
-  case (stack S.!? index) of
-    (Just i) -> return i
-    Nothing  -> except $ Left err
-
-getPc :: State VM Int
-getPc = get >>= (return . _pc)
-
-getFp :: State VM Int
-getFp = get >>= (return . _fp)
-
-getStackSize :: State VM Int
-getStackSize = get >>= (return . length . _stack)
-
-setPc :: Int -> State VM ()
-setPc pc' = do
-  vm <- get
-  put vm { _pc = pc' }
-
-setFp :: Int -> State VM ()
-setFp fp' = do
-  vm <- get
-  put vm { _fp = fp' }
-
-forward :: Int -> State VM () 
-forward offset = do
-  vm <- get
-  put vm { _pc = _pc vm + offset }
-  return ()  
-
---------------------------------------------------------------------------
-
-instructionByOp :: M.Map Op Instruction
-instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions               
-
-parseInstr :: [Word8] -> Either String (Instruction, [Word8])
-parseInstr (opCode:rest) = do
-  let op = toEnum . fromIntegral $ opCode :: Op
-  instr <- case M.lookup op instructionByOp of
-    (Just i) -> Right i
-    Nothing -> Left "Unknown instruction"
-  let noParams = _noParams instr
-  let params = map fromIntegral $ take noParams rest :: [Word8]
-  if length params == noParams 
-  then return (instr, params)
-  else Left $ "Expected " ++ (show noParams) ++ " parameter(s), got " ++ (show $ length params) ++ " for operator '" ++ (show op) ++ "'"
-parseInstr [] = Left "Unexpected end of the file"
-
-
-parse :: [Word8] -> Either String [Unit]
-parse [] = Right []
-parse code = do
-  (instr, params) <- parseInstr code
-  let paramBytes = map Byte params
-  let noParams = _noParams instr
-  rest <- parse (drop (noParams + 1) code)
-  return $ [Instr instr] ++ paramBytes ++ rest
-
-interpret :: VM -> [Unit] -> ExceptT String IO VM
-interpret vm@VM { _halt = True} _ = except $ Right $ vm
-interpret vm units = do
-  vm' <- interpretUnit vm units
-  interpret vm' units
-
-interpretUnit :: VM -> [Unit] -> ExceptT String IO VM
-interpretUnit _ [] = except $ Left "Nothing to interpret"
-interpretUnit vm units
-  | pc >= progSize = except $ Left $ "PC (=" ++ (show pc) ++ ") exceeds program size (=" ++ (show progSize) ++ ")"
-  | otherwise = case unit of
-      (Instr instr) -> dispatchInstr vm units instr
-      (Byte _)      -> except $ Left $ "PC (=" ++ (show pc) ++ ") currently points to the data byte rather than instruction" 
-  where
-    pc = _pc vm
-    progSize = length units
-    unit = units !! pc
-
-dispatchInstr :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
-dispatchInstr vm units instr = case instr of 
-  Simple {} -> except $ Right $ interpretSimple vm units instr 
-  Complex {} -> interpretComplex vm units instr 
-
-interpretSimple :: VM -> [Unit] -> Instruction -> VM
-interpretSimple vm units instr = flip execState vm $ do    
-  pc <- getPc
-  let noParams = _noParams instr  
-  let noPops = _noPops instr        
-  let paramBytes = take noParams $ drop (pc + 1) $ units
-  let params = map (fromIntegral . _byte) paramBytes    
-  let action = _sAction instr
-  pops <- pop noPops
-  let pushes = action params pops
-  pushS pushes
-  forward $ noParams + 1
-  return ()
-    
-
-interpretComplex :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
-interpretComplex vm units instr = action vm' params pops
-  where    
-    pc = _pc vm
-    noParams = _noParams instr  
-    noPops = _noPops instr  
- 
-    paramBytes = take noParams $ drop (pc + 1) $ units 
-    params = map (fromIntegral . _byte) paramBytes     
-    (pops, vm') = runState (pop noPops) vm
-
-    action = _cAction instr
-    
-run :: B.ByteString -> ExceptT String IO VM
-run code = (return $ B.unpack code) >>= (except . parse) >>= interpret empty

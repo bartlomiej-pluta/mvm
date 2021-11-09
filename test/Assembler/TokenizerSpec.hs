@@ -5,7 +5,7 @@ import Numeric (showHex)
 import Data.Char (ord)
 
 import Assembler.Tokenizer
-import VirtualMachine
+import VirtualMachine.VM (Op(..))
 
 success :: Token -> Int -> Maybe TokenizeResult
 success token consumed = Just $ TokenizeResult token consumed

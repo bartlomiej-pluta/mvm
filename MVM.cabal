@@ -27,7 +27,9 @@ executable MVM
 
     -- Modules included in this executable, other than Main.    
     other-modules:
-      VirtualMachine
+      VirtualMachine.VM
+      VirtualMachine.Instruction
+      VirtualMachine.Interpreter
       Assembler.Tokenizer
       Assembler.Parser
       Assembler.Emitter
@@ -66,7 +68,9 @@ test-suite spec
       Assembler.EmitterSpec
       UtilSpec
 
-      VirtualMachine
+      VirtualMachine.VM
+      VirtualMachine.Instruction
+      VirtualMachine.Interpreter
       Assembler.Tokenizer
       Assembler.Parser
       Assembler.Emitter

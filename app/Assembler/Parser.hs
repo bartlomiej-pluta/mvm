@@ -4,7 +4,7 @@ import Data.List (intercalate)
 import Data.Monoid (First(..))
 
 import qualified Assembler.Tokenizer as T (Token(..))
-import VirtualMachine (Op)
+import VirtualMachine.VM (Op)
 import Util (explode)
 
 

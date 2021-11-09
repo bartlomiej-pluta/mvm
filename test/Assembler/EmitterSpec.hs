@@ -8,7 +8,7 @@ import Control.Monad.State (execState)
 import Assembler.Tokenizer (tokenize)
 import Assembler.Parser (AST(..), parse)
 import Assembler.Emitter as E
-import VirtualMachine (Op(..))
+import VirtualMachine.VM (Op(..))
 
 spec :: Spec
 spec = do
