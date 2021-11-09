@@ -88,7 +88,7 @@ debug vm _ _ = do
 
 jumpIf :: (Int -> Int -> Bool) -> VM -> Params -> Pops -> ExceptT String IO VM
 jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
-  where pc = if top `predicate` 0 then addr else _pc vm + 1
+  where pc = if top `predicate` 0 then addr else _pc vm + 2
 jumpIf _ _ [] _  = except $ Left "Address expected"
 jumpIf _ _ _  [] = except $ Left "Empty stack - nothing to compare"  
 
