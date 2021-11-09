@@ -9,13 +9,15 @@ import Assembler.Compiler (compile)
 import Control.Monad.Trans.Except
 
 
-run :: String -> IO ()
-run input = case compile input of
-  (Right bytes) -> runExceptT (VM.run VM.empty (B.pack bytes)) >>= print >> return ()
-  (Left err) -> putStrLn err
-
+run :: String -> IO (Either String VM.VM)
+run input = runExceptT $ (except $ return $ input) >>= (except . compile) >>= (except . return . B.pack) >>= VM.run
+  
 main :: IO ()
 main = do
   (filename:_) <- getArgs
   input <- readFile filename
-  run input
+  result <- run input
+  case result of
+    (Right vm) -> do
+      putStrLn $ "\n\nDone:\n" ++ (show vm)
+    (Left err) -> putStrLn $ "\n\nError:\n" ++ err

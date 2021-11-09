@@ -1,28 +1,14 @@
-module VirtualMachine (
-  VM(..),
-  Op(..),
-  Instruction(..),
-  Command(..),
-  empty,
-  instructions,
-  instructionByOp,
-  toOp,
-  run
-) where
-
-import Data.Word (Word8)
-import Data.Foldable (toList)
-import Data.Char (chr, toLower, toUpper)
-
-import Control.Monad.Trans (liftIO)
-import Control.Monad.Trans.Except (ExceptT(..), except)
+module VirtualMachine where
 
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.ByteString as B
 
-import Util (byteStr, bytesStr)
-
+import Data.Char (chr)
+import Data.Word (Word8)
+import Data.Foldable (toList)
+import Control.Monad.Trans (liftIO)
+import Control.Monad.Trans.Except (ExceptT, except)
 
 data VM = VM { _pc :: Int
              , _fp :: Int
@@ -57,24 +43,20 @@ data Op = Nop  -- 0x00
         | Dbg  -- 0x18
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
-type Args = [Int]
+type Params = [Int]
 type Pops = [Int]
 type Pushes = S.Seq Int
 
-data Instruction = Simple     { _op        :: Op
-                              , _noParams  :: Int
-                              , _noPops    :: Int
-                              , _sAction   :: Args -> Pops -> Pushes
-                              } 
-                   | Complex  { _op        :: Op
-                              , _noParams  :: Int
-                              , _noPops    :: Int
-                              , _cAction   :: VM -> Args -> Pops -> ExceptT String IO VM
-                              } 
+data Instruction = Simple  { _op :: Op, _noParams :: Int, _noPops :: Int, _sAction ::       Params -> Pops -> Pushes               } 
+                |  Complex { _op :: Op, _noParams :: Int, _noPops :: Int, _cAction :: VM -> Params -> Pops -> ExceptT String IO VM } 
 
-data Command = Command { _instr  :: Instruction
-                       , _args   :: [Int]
-                       } 
+instance Show Instruction where
+  show (Simple op noParams noPops _)  = (show op) ++ "(S," ++ (show noParams) ++ "," ++ (show noPops) ++ ")"
+  show (Complex op noParams noPops _) = (show op) ++ "(C," ++ (show noParams) ++ "," ++ (show noPops) ++ ")"
+
+data Unit = Instr { _instr :: Instruction }
+          | Byte  { _byte  :: Word8       }
+          deriving (Show)
 
 empty :: VM
 empty = VM { _pc     = 0
@@ -96,7 +78,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
                , Complex { _op = Halt, _noParams = 0, _noPops = 1, _cAction = (\vm _ _   -> except $ Right $ vm { _halt = True })  }
-               , Complex { _op = Jmp,  _noParams = 1, _noPops = 1, _cAction = (\vm [x] _ -> except $ Right $ vm { _pc = x})        }
+               , Complex { _op = Jmp,  _noParams = 1, _noPops = 0, _cAction = (\vm [x] _ -> except $ Right $ vm { _pc = x})        }
                , Complex { _op = Je,   _noParams = 1, _noPops = 1, _cAction = jumpIf (==)                                          }
                , Complex { _op = Jne,  _noParams = 1, _noPops = 1, _cAction = jumpIf (/=)                                          }
                , Complex { _op = Jg,   _noParams = 1, _noPops = 1, _cAction = jumpIf (>)                                           }
@@ -107,80 +89,104 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Dbg,  _noParams = 0, _noPops = 0, _cAction = debug                                                }
                ]
 
-jumpIf :: (Int -> Int -> Bool) -> VM -> Args -> Pops -> ExceptT String IO VM
-jumpIf _ _ [] _  = except $ Left $ "Address expected"
-jumpIf _ _ _  [] = except $ Left $ "Empty stack - nothing to compare"
-jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
-  where pc = if top `predicate` 0 then addr else _pc vm + 1
-
-output :: VM -> Args -> Pops -> ExceptT String IO VM
-output _ _ [] = except $ Left $ "Empty stack - nothing to output"
-output vm _ (char:_) = do
-  liftIO $ putStr $ [chr char]
-  return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
-
-debug :: VM -> Args -> Pops -> ExceptT String IO VM
+debug :: VM -> Params -> Pops -> ExceptT String IO VM
 debug vm _ _ = do
   liftIO $ print vm
   return vm { _pc = _pc vm + 1 }
 
+jumpIf :: (Int -> Int -> Bool) -> VM -> Params -> Pops -> ExceptT String IO VM
+jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
+  where pc = if top `predicate` 0 then addr else _pc vm + 1
+jumpIf _ _ [] _  = except $ Left $ "Address expected"
+jumpIf _ _ _  [] = except $ Left $ "Empty stack - nothing to compare"  
+
+output :: VM -> Params -> Pops -> ExceptT String IO VM
+output vm _ (char:_) = do
+  liftIO $ putStr $ [chr char]
+  return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
+output _ _ [] = except $ Left $ "Empty stack - nothing to output"
+
+
+--------------------------------------------------------------------------
+
 instructionByOp :: M.Map Op Instruction
-instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions
+instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions               
 
-toOp :: String -> Op
-toOp = read . capitalize
-  where capitalize :: String -> String
-        capitalize [] = []
-        capitalize (x:xs) = toUpper x : map toLower xs
+parseInstr :: [Word8] -> Either String (Instruction, [Word8])
+parseInstr (opCode:rest) = do
+  let op = toEnum . fromIntegral $ opCode :: Op
+  instr <- case M.lookup op instructionByOp of
+    (Just i) -> Right i
+    Nothing -> Left "Unknown instruction"
+  let noParams = _noParams instr
+  let params = map fromIntegral $ take noParams rest :: [Word8]
+  if length params == noParams 
+  then return (instr, params)
+  else Left $ "Expected " ++ (show noParams) ++ " parameter(s), got " ++ (show $ length params) ++ " for operator '" ++ (show op) ++ "'"
+parseInstr [] = Left "Unexpected end of the file"
 
-parse :: B.ByteString -> Either String [Command]
-parse = parseCommands . B.unpack
 
-parseCommands :: [Word8] -> Either String [Command]
-parseCommands [] = Right []
-parseCommands code@(x:_) = case parseCommand code of
-  Just (cmd, rest) -> parseCommands rest >>= (\r -> return $ cmd : r)                              
-  Nothing          -> Left $ "Unparseable byte: " ++ byteStr x ++ "\nIn following sequence:\n" ++ bytesStr 16 code
+parse :: [Word8] -> Either String [Unit]
+parse [] = Right []
+parse code = do
+  (instr, params) <- parseInstr code
+  let paramBytes = map Byte params
+  let noParams = _noParams instr
+  rest <- parse (drop (noParams + 1) code)
+  return $ [Instr instr] ++ paramBytes ++ rest
 
-parseCommand :: [Word8] -> Maybe (Command, [Word8])
-parseCommand [] = Nothing
-parseCommand (opByte:xs) = do
-  let op = toEnum . fromIntegral $ opByte :: Op
-  instruction <- M.lookup op instructionByOp
-  let paramsNumber = _noParams instruction
-  let params = map fromIntegral $ take paramsNumber xs :: [Int]
-  return (Command instruction params, drop paramsNumber xs)
+interpret :: VM -> [Unit] -> ExceptT String IO VM
+interpret vm@VM { _halt = True} _ = except $ Right $ vm
+interpret vm units = do
+  vm' <- interpretUnit vm units
+  interpret vm' units
 
-interpret :: [Command] -> VM -> ExceptT String IO VM
-interpret _ vm@(VM _ _ _ True) = except $ Right $ vm
-interpret cmds vm = do
-  vm' <- interpretCommand cmds vm
-  interpret cmds vm'
-
-interpretCommand :: [Command] -> VM -> ExceptT String IO VM
-interpretCommand [] _ = except $ Left $ "Empty code"
-interpretCommand cmds vm@(VM pc _ _ _)
-  | pc >= length cmds = except $ Right $ vm { _halt = True }
-  | otherwise         = case instr of
-                          (Simple _ _ _ _)  -> except $ interpretSimple vm cmd
-                          (Complex _ _ _ _) -> interpretComplex vm cmd
-                          where cmd@(Command instr _) = cmds !! pc
-
-interpretSimple :: VM -> Command -> Either String VM
-interpretSimple vm (Command (Simple _ _ noPops operation) args) = vm'
+interpretUnit :: VM -> [Unit] -> ExceptT String IO VM
+interpretUnit _ [] = except $ Left "Nothing to interpret"
+interpretUnit vm units
+  | pc >= progSize = except $ Left $ "PC (=" ++ (show pc) ++ ") exceeds program size (=" ++ (show progSize) ++ ")"
+  | otherwise = case unit of
+      (Instr instr) -> dispatchInstr vm units instr
+      (Byte _)      -> except $ Left $ "PC (=" ++ (show pc) ++ ") currently points to the data byte rather than instruction" 
   where
-    pops = toList . S.take noPops . _stack $ vm
-    stack' = Right $ operation args pops
-    vm' = stack' >>= (\s -> Right $ vm { _pc = _pc vm + 1
-                                       , _stack = s <> (S.drop noPops . _stack) vm
-                                       })
-interpretSimple _ _ = Left "Unknown operation"
+    pc = _pc vm
+    progSize = length units
+    unit = units !! pc
 
-interpretComplex :: VM -> Command -> ExceptT String IO VM
-interpretComplex vm (Command (Complex _ _ noPops operation) args) = operation vm args pops
+dispatchInstr :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
+dispatchInstr vm units instr = case instr of 
+  Simple {} -> except $ Right $ interpretSimple vm units instr 
+  Complex {} -> interpretComplex vm units instr 
+
+interpretSimple :: VM -> [Unit] -> Instruction -> VM
+interpretSimple vm units instr = vm'
+  where  
+    stack = _stack vm
+    pc = _pc vm
+    noParams = _noParams instr  
+    noPops = _noPops instr  
+
+    paramBytes = take noParams $ drop (pc + 1) $ units     :: [Unit]
+    params = map (fromIntegral . _byte) paramBytes         :: [Int]
+    pops = toList $ S.take noPops $ stack                  :: [Int]
+
+    action = _sAction instr
+    pushes = action params pops
+    vm' = vm { _pc = pc + noParams + 1, _stack = pushes <> (S.drop noPops stack) }
+
+interpretComplex :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
+interpretComplex vm units instr = action vm params pops
   where
-    pops = toList . S.take noPops . _stack $ vm
-interpretComplex _ _ = except $ Left "Unknown operation"
+    stack = _stack vm
+    pc = _pc vm
+    noParams = _noParams instr  
+    noPops = _noPops instr  
+ 
+    paramBytes = take noParams $ drop (pc + 1) $ units     :: [Unit]
+    params = map (fromIntegral . _byte) paramBytes  :: [Int]
+    pops = toList $ S.take noPops $ stack           :: [Int]
 
-run :: VM -> B.ByteString -> ExceptT String IO VM
-run vm code = return code >>= (except . parse) >>= flip interpret vm
+    action = _cAction instr
+    
+run :: B.ByteString -> ExceptT String IO VM
+run code = (return $ B.unpack code) >>= (except . parse) >>= interpret empty
