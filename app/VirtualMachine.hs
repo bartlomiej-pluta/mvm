@@ -93,13 +93,17 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                ]
 
 call :: VM -> Params -> Pops -> ExceptT String IO VM
-call vm (addr:_) _ = except $ return $ vm { _pc = addr, _fp = fp', _stack = stack' }
-  where
-    fp = _fp vm
-    stack = _stack vm
-    fp' = length stack
-    retAddr = _pc vm + 2
-    stack' = S.fromList [retAddr, fp] <> stack
+call vm (addr:_) _ = except $ return $ flip execState vm $ do  
+  fp  <- getFp
+  fp' <- getStackSize  
+  retAddr  <- getPc >>= return . (+2)
+  
+  push [retAddr, fp]
+  setPc addr
+  setFp fp'  
+  
+  return ()
+
 call _ [] _ = except $ Left $ "Address excepted"
 
 ret :: VM -> Params -> Pops -> ExceptT String IO VM
@@ -111,8 +115,8 @@ ret vm _ _ = do
 
   fp'     <- except $ evalState (runExceptT (getAt (stackSize - fp - 1) "Cannot determine previous frame pointer (fp)")) vm
   retAddr <- except $ evalState (runExceptT (getAt (stackSize - fp - 2) "Cannot determine return address"             )) vm
-
-  return vm { _fp = fp', _pc = retAddr, _stack = stack' }
+  
+  return vm { _fp = fp', _pc = retAddr, _stack = stack' }     
 
 debug :: VM -> Params -> Pops -> ExceptT String IO VM
 debug vm _ _ = do
@@ -157,14 +161,30 @@ getAt index err = do
     (Just i) -> return i
     Nothing  -> except $ Left err
 
-forward :: Int -> State VM ()
+getPc :: State VM Int
+getPc = get >>= (return . _pc)
+
+getFp :: State VM Int
+getFp = get >>= (return . _fp)
+
+getStackSize :: State VM Int
+getStackSize = get >>= (return . length . _stack)
+
+setPc :: Int -> State VM ()
+setPc pc' = do
+  vm <- get
+  put vm { _pc = pc' }
+
+setFp :: Int -> State VM ()
+setFp fp' = do
+  vm <- get
+  put vm { _fp = fp' }
+
+forward :: Int -> State VM () 
 forward offset = do
   vm <- get
   put vm { _pc = _pc vm + offset }
-  return ()
-
-getPc :: State VM Int
-getPc = get >>= (return . _pc)
+  return ()  
 
 --------------------------------------------------------------------------
 
