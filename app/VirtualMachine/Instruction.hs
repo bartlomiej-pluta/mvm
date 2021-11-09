@@ -51,6 +51,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Ld,   _noParams = 1, _noPops = 0, _cAction = load                                                 }
                , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = niy In                                               }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
+               , Complex { _op = Clr,  _noParams = 1, _noPops = 0, _cAction = clear                                                }
                ]
 
 instructionByOp :: M.Map Op Instruction
@@ -92,7 +93,7 @@ ret vm _ _ = do
   return vm { _fp = fp', _pc = retAddr, _stack = stack' }     
 
 jumpIf :: (Int -> Int -> Bool) -> VM -> Params -> Pops -> ExceptT String IO VM
-jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
+jumpIf predicate vm (addr:_) (top:_) = except $ return $ vm { _pc = pc }
   where pc = if top `predicate` 0 then addr else _pc vm + 2
 jumpIf _ _ [] _  = except $ Left "Address expected"
 jumpIf _ _ _  [] = except $ Left "Empty stack - nothing to compare"  
@@ -112,7 +113,16 @@ load vm (index:_) _ = do
   val <- except $ evalState (runExceptT (getAt (stackSize - fp + index) ("Index " ++ (show index) ++ "out of stack bounds") )) vm
 
   return $ execState (push [val] >> forward 2) vm
-load _ [] _ = except $ Left $ "Empty stack - nothing to lift"  
+load _ [] _ = except $ Left $ "Local parameter index expected"  
 
 niy :: Op -> VM -> Params -> Pops -> ExceptT String IO VM
 niy op vm _ _ = except $ Left $ "Instruction '" ++ (show op) ++ "' ("++ (show $ _pc vm) ++") is not implemented yet"
+
+clear :: VM -> Params -> Pops -> ExceptT String IO VM
+clear vm (count:_) _ = except $ return $ flip execState vm $ do
+  top <- pop 1
+  _ <- pop count
+  push top
+  forward 2
+  return ()
+clear _ [] _ = except $ Left "Number of elements to be cleaned expected"

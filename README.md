@@ -25,3 +25,6 @@ List of available instructions:
 | ``0x13`` | ``JGE x``  | Jump to ``x`` **if** top element ``>= 0``                                      |
 | ``0x14`` | ``JLE x``  | Jump to ``x`` **if** top element ``<= 0``                                      |
 | ``0x15`` | ``LD x``   | Push local variable to stack                                                   |
+| ``0x16`` | ``IN``     | Read input from stdin                                                          |
+| ``0x17`` | ``OUT``    | Put top stack value to stdout as char                                          |
+| ``0x18`` | ``CLR x``  | Wipe out ``x`` values before the top value from the stack                      |
