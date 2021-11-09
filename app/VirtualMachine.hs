@@ -7,8 +7,9 @@ import qualified Data.ByteString as B
 import Data.Char (chr)
 import Data.Word (Word8)
 import Data.Foldable (toList)
+import Control.Monad.State (State, put, get, execState, evalState)
 import Control.Monad.Trans (liftIO)
-import Control.Monad.Trans.Except (ExceptT, except)
+import Control.Monad.Trans.Except (ExceptT, except, runExceptT)
 
 data VM = VM { _pc :: Int
              , _fp :: Int
@@ -78,6 +79,8 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
                , Complex { _op = Halt, _noParams = 0, _noPops = 1, _cAction = (\vm _ _   -> except $ Right $ vm { _halt = True })  }
+               , Complex { _op = Call, _noParams = 1, _noPops = 0, _cAction = call                                                 }
+               , Complex { _op = Ret,  _noParams = 0, _noPops = 0, _cAction = ret                                                  }
                , Complex { _op = Jmp,  _noParams = 1, _noPops = 0, _cAction = (\vm [x] _ -> except $ Right $ vm { _pc = x})        }
                , Complex { _op = Je,   _noParams = 1, _noPops = 1, _cAction = jumpIf (==)                                          }
                , Complex { _op = Jne,  _noParams = 1, _noPops = 1, _cAction = jumpIf (/=)                                          }
@@ -89,6 +92,28 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Dbg,  _noParams = 0, _noPops = 0, _cAction = debug                                                }
                ]
 
+call :: VM -> Params -> Pops -> ExceptT String IO VM
+call vm (addr:_) _ = except $ return $ vm { _pc = addr, _fp = fp', _stack = stack' }
+  where
+    fp = _fp vm
+    stack = _stack vm
+    fp' = length stack
+    retAddr = _pc vm + 2
+    stack' = S.fromList [retAddr, fp] <> stack
+call _ [] _ = except $ Left $ "Address excepted"
+
+ret :: VM -> Params -> Pops -> ExceptT String IO VM
+ret vm _ _ = do
+  let fp = _fp vm
+  let stack = _stack vm
+  let stackSize = S.length stack
+  let stack' = _stack $ execState (pop (stackSize - fp)) vm
+
+  fp'     <- except $ evalState (runExceptT (getAt (stackSize - fp - 1) "Cannot determine previous frame pointer (fp)")) vm
+  retAddr <- except $ evalState (runExceptT (getAt (stackSize - fp - 2) "Cannot determine return address"             )) vm
+
+  return vm { _fp = fp', _pc = retAddr, _stack = stack' }
+
 debug :: VM -> Params -> Pops -> ExceptT String IO VM
 debug vm _ _ = do
   liftIO $ print vm
@@ -97,8 +122,8 @@ debug vm _ _ = do
 jumpIf :: (Int -> Int -> Bool) -> VM -> Params -> Pops -> ExceptT String IO VM
 jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
   where pc = if top `predicate` 0 then addr else _pc vm + 1
-jumpIf _ _ [] _  = except $ Left $ "Address expected"
-jumpIf _ _ _  [] = except $ Left $ "Empty stack - nothing to compare"  
+jumpIf _ _ [] _  = except $ Left "Address expected"
+jumpIf _ _ _  [] = except $ Left "Empty stack - nothing to compare"  
 
 output :: VM -> Params -> Pops -> ExceptT String IO VM
 output vm _ (char:_) = do
@@ -106,6 +131,34 @@ output vm _ (char:_) = do
   return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
 output _ _ [] = except $ Left $ "Empty stack - nothing to output"
 
+--------------------------------------------------------------------------
+
+push :: [Int] -> State VM ()
+push numbers = do
+  vm <- get
+  put vm { _stack = S.fromList numbers <> _stack vm  }
+  return ()
+
+pop :: Int -> State VM [Int]
+pop count = do
+  vm <- get
+  let stack = _stack vm
+  put vm { _stack = S.drop count $ stack }
+  return $ toList $ S.take count $ stack
+
+popThenPush :: Int -> [Int] -> State VM [Int]
+popThenPush count numbers = do
+  pops <- pop count
+  push numbers
+  return pops
+
+getAt :: Int -> String -> ExceptT String (State VM) Int
+getAt index err = do
+  vm <- get
+  let stack = _stack vm
+  case (stack S.!? index) of
+    (Just i) -> return i
+    Nothing  -> except $ Left err
 
 --------------------------------------------------------------------------
 
