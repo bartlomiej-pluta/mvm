@@ -38,7 +38,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Simple  { _op = Div,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
                , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
-               , Complex { _op = Halt, _noParams = 0, _noPops = 1, _cAction = (\vm _ _   -> except $ Right $ vm { _halt = True })  }
+               , Complex { _op = Halt, _noParams = 0, _noPops = 0, _cAction = (\vm _ _   -> except $ Right $ vm { _halt = True })  }
                , Complex { _op = Call, _noParams = 1, _noPops = 0, _cAction = call                                                 }
                , Complex { _op = Ret,  _noParams = 0, _noPops = 0, _cAction = ret                                                  }
                , Complex { _op = Jmp,  _noParams = 1, _noPops = 0, _cAction = (\vm [x] _ -> except $ Right $ vm { _pc = x})        }
@@ -48,6 +48,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Jl,   _noParams = 1, _noPops = 1, _cAction = jumpIf (<)                                           }
                , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
                , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
+               , Complex { _op = Ld,   _noParams = 1, _noPops = 0, _cAction = load                                                 }
                , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = niy In                                               }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                ]
@@ -74,7 +75,16 @@ ret vm _ _ = do
   let fp = _fp vm
   let stack = _stack vm
   let stackSize = S.length stack
-  let stack' = _stack $ execState (pop (stackSize - fp)) vm
+  let stack' = _stack $ flip execState vm $ do
+        if stackSize - fp == 2 
+        then do
+          _ <- pop (stackSize - fp)
+          return ()
+        else do
+          retVal <- pop 1
+          _ <- pop (stackSize - fp - 1)
+          push retVal
+          return ()
 
   fp'     <- except $ evalState (runExceptT (getAt (stackSize - fp - 1) "Cannot determine previous frame pointer (fp)")) vm
   retAddr <- except $ evalState (runExceptT (getAt (stackSize - fp - 2) "Cannot determine return address"             )) vm
@@ -92,6 +102,17 @@ output vm _ (char:_) = do
   liftIO $ putStr $ [chr char]
   return (execState (forward 1) vm)  
 output _ _ [] = except $ Left $ "Empty stack - nothing to output"
+
+load :: VM -> Params -> Pops -> ExceptT String IO VM
+load vm (index:_) _ = do
+  let fp = _fp vm
+  let stack = _stack vm
+  let stackSize = S.length stack
+
+  val <- except $ evalState (runExceptT (getAt (stackSize - fp + index) ("Index " ++ (show index) ++ "out of stack bounds") )) vm
+
+  return $ execState (push [val] >> forward 2) vm
+load _ [] _ = except $ Left $ "Empty stack - nothing to lift"  
 
 niy :: Op -> VM -> Params -> Pops -> ExceptT String IO VM
 niy op vm _ _ = except $ Left $ "Instruction '" ++ (show op) ++ "' ("++ (show $ _pc vm) ++") is not implemented yet"
