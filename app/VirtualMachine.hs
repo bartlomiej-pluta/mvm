@@ -134,9 +134,12 @@ output _ _ [] = except $ Left $ "Empty stack - nothing to output"
 --------------------------------------------------------------------------
 
 push :: [Int] -> State VM ()
-push numbers = do
+push = pushS . S.fromList
+
+pushS :: S.Seq Int -> State VM ()
+pushS numbers = do
   vm <- get
-  put vm { _stack = S.fromList numbers <> _stack vm  }
+  put vm { _stack = numbers <> _stack vm  }
   return ()
 
 pop :: Int -> State VM [Int]
@@ -146,12 +149,6 @@ pop count = do
   put vm { _stack = S.drop count $ stack }
   return $ toList $ S.take count $ stack
 
-popThenPush :: Int -> [Int] -> State VM [Int]
-popThenPush count numbers = do
-  pops <- pop count
-  push numbers
-  return pops
-
 getAt :: Int -> String -> ExceptT String (State VM) Int
 getAt index err = do
   vm <- get
@@ -159,6 +156,15 @@ getAt index err = do
   case (stack S.!? index) of
     (Just i) -> return i
     Nothing  -> except $ Left err
+
+forward :: Int -> State VM ()
+forward offset = do
+  vm <- get
+  put vm { _pc = _pc vm + offset }
+  return ()
+
+getPc :: State VM Int
+getPc = get >>= (return . _pc)
 
 --------------------------------------------------------------------------
 
@@ -212,32 +218,30 @@ dispatchInstr vm units instr = case instr of
   Complex {} -> interpretComplex vm units instr 
 
 interpretSimple :: VM -> [Unit] -> Instruction -> VM
-interpretSimple vm units instr = vm'
-  where  
-    stack = _stack vm
-    pc = _pc vm
-    noParams = _noParams instr  
-    noPops = _noPops instr  
-
-    paramBytes = take noParams $ drop (pc + 1) $ units     :: [Unit]
-    params = map (fromIntegral . _byte) paramBytes         :: [Int]
-    pops = toList $ S.take noPops $ stack                  :: [Int]
-
-    action = _sAction instr
-    pushes = action params pops
-    vm' = vm { _pc = pc + noParams + 1, _stack = pushes <> (S.drop noPops stack) }
+interpretSimple vm units instr = flip execState vm $ do    
+  pc <- getPc
+  let noParams = _noParams instr  
+  let noPops = _noPops instr        
+  let paramBytes = take noParams $ drop (pc + 1) $ units
+  let params = map (fromIntegral . _byte) paramBytes    
+  let action = _sAction instr
+  pops <- pop noPops
+  let pushes = action params pops
+  pushS pushes
+  forward $ noParams + 1
+  return ()
+    
 
 interpretComplex :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
 interpretComplex vm units instr = action vm params pops
-  where
-    stack = _stack vm
+  where    
     pc = _pc vm
     noParams = _noParams instr  
     noPops = _noPops instr  
  
-    paramBytes = take noParams $ drop (pc + 1) $ units     :: [Unit]
-    params = map (fromIntegral . _byte) paramBytes  :: [Int]
-    pops = toList $ S.take noPops $ stack           :: [Int]
+    paramBytes = take noParams $ drop (pc + 1) $ units 
+    params = map (fromIntegral . _byte) paramBytes     
+    pops = evalState (pop noPops) vm
 
     action = _cAction instr
     
