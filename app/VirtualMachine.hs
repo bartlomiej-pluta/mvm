@@ -7,7 +7,7 @@ import qualified Data.ByteString as B
 import Data.Char (chr)
 import Data.Word (Word8)
 import Data.Foldable (toList)
-import Control.Monad.State (State, put, get, execState, evalState)
+import Control.Monad.State (State, put, get, execState, evalState, runState)
 import Control.Monad.Trans (liftIO)
 import Control.Monad.Trans.Except (ExceptT, except, runExceptT)
 
@@ -128,7 +128,7 @@ jumpIf _ _ _  [] = except $ Left "Empty stack - nothing to compare"
 output :: VM -> Params -> Pops -> ExceptT String IO VM
 output vm _ (char:_) = do
   liftIO $ putStr $ [chr char]
-  return vm { _pc = _pc vm + 1, _stack = S.drop 1 $ _stack vm}
+  return (execState (forward 1) vm)  
 output _ _ [] = except $ Left $ "Empty stack - nothing to output"
 
 --------------------------------------------------------------------------
@@ -233,7 +233,7 @@ interpretSimple vm units instr = flip execState vm $ do
     
 
 interpretComplex :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
-interpretComplex vm units instr = action vm params pops
+interpretComplex vm units instr = action vm' params pops
   where    
     pc = _pc vm
     noParams = _noParams instr  
@@ -241,7 +241,7 @@ interpretComplex vm units instr = action vm params pops
  
     paramBytes = take noParams $ drop (pc + 1) $ units 
     params = map (fromIntegral . _byte) paramBytes     
-    pops = evalState (pop noPops) vm
+    (pops, vm') = runState (pop noPops) vm
 
     action = _cAction instr
     
