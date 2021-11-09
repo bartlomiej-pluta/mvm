@@ -6,10 +6,11 @@ import Control.Monad.Trans.Except (ExceptT, except)
 import qualified Data.Sequence as S
 
 
-data VM = VM { _pc :: Int
-             , _fp :: Int
+data VM = VM { _pc    :: Int
+             , _fp    :: Int
              , _stack :: S.Seq Int
-             , _halt :: Bool
+             , _halt  :: Bool
+             , _debug :: Bool
              } deriving (Show, Eq)
 
 data Op = Nop  -- 0x00 
@@ -36,7 +37,6 @@ data Op = Nop  -- 0x00
         | Ld   -- 0x15
         | In   -- 0x16
         | Out  -- 0x17
-        | Dbg  -- 0x18
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 empty :: VM
@@ -44,6 +44,7 @@ empty = VM { _pc     = 0
            , _fp     = -1
            , _stack  = S.empty
            , _halt   = False
+           , _debug  = False
            }
 
 -------------------------------------------------------------------------------

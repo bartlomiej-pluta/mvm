@@ -1,8 +1,9 @@
 module VirtualMachine.Interpreter where
 
 import Data.Word (Word8)
+import Data.List (intercalate)
 import Control.Monad.Trans.Except (ExceptT, except)
-import Control.Monad.State (runState, execState)
+import Control.Monad.State (liftIO, runState, execState)
 import qualified Data.Map as M
 import qualified Data.ByteString as B
 
@@ -52,9 +53,23 @@ interpretUnit vm units
     unit = units !! pc
 
 dispatchInstr :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
-dispatchInstr vm units instr = case instr of 
-  Simple {} -> except $ Right $ interpretSimple vm units instr 
-  Complex {} -> interpretComplex vm units instr 
+dispatchInstr vm units instr = do
+  liftIO $ debugPrint vm instr units
+
+  case instr of 
+    Simple {}  -> except $ Right $ interpretSimple vm units instr 
+    Complex {} -> interpretComplex vm units instr
+
+debugPrint :: VM -> Instruction -> [Unit] -> IO ()
+debugPrint vm instr units = if _debug vm
+           then do
+             let pc = _pc vm
+             let noParams = _noParams instr
+             let params = intercalate "" $ map (show . _byte) $ take noParams $ drop (pc + 1) $ units
+             putStrLn $ show vm
+             putStrLn $ (show pc) ++ ": " ++ (show $ _op instr) ++ " " ++ params
+             return ()
+           else return ()
 
 interpretSimple :: VM -> [Unit] -> Instruction -> VM
 interpretSimple vm units instr = flip execState vm $ do    
@@ -84,5 +99,8 @@ interpretComplex vm units instr = action vm' params pops
 
     action = _cAction instr
     
-run :: B.ByteString -> ExceptT String IO VM
-run code = (return $ B.unpack code) >>= (except . parse) >>= interpret empty
+run :: VM -> B.ByteString -> ExceptT String IO VM
+run vm code = (return $ B.unpack code) >>= (except . parse) >>= interpret vm
+
+runEmpty :: B.ByteString -> ExceptT String IO VM
+runEmpty = run empty

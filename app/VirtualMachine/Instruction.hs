@@ -48,8 +48,8 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Jl,   _noParams = 1, _noPops = 1, _cAction = jumpIf (<)                                           }
                , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
                , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
+               , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = niy In                                               }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
-               , Complex { _op = Dbg,  _noParams = 0, _noPops = 0, _cAction = debug                                                }
                ]
 
 instructionByOp :: M.Map Op Instruction
@@ -81,11 +81,6 @@ ret vm _ _ = do
   
   return vm { _fp = fp', _pc = retAddr, _stack = stack' }     
 
-debug :: VM -> Params -> Pops -> ExceptT String IO VM
-debug vm _ _ = do
-  liftIO $ print vm
-  return vm { _pc = _pc vm + 1 }
-
 jumpIf :: (Int -> Int -> Bool) -> VM -> Params -> Pops -> ExceptT String IO VM
 jumpIf predicate vm (addr:_) (top:_) = except $ Right $ vm { _pc = pc }
   where pc = if top `predicate` 0 then addr else _pc vm + 2
@@ -97,3 +92,6 @@ output vm _ (char:_) = do
   liftIO $ putStr $ [chr char]
   return (execState (forward 1) vm)  
 output _ _ [] = except $ Left $ "Empty stack - nothing to output"
+
+niy :: Op -> VM -> Params -> Pops -> ExceptT String IO VM
+niy op vm _ _ = except $ Left $ "Instruction '" ++ (show op) ++ "' ("++ (show $ _pc vm) ++") is not implemented yet"
