@@ -34,6 +34,7 @@ executable MVM
       Assembler.Parser
       Assembler.Emitter
       Assembler.Compiler
+      Runner
       Util
 
     -- LANGUAGE extensions used by modules in this package.
@@ -74,6 +75,7 @@ test-suite spec
       Assembler.Tokenizer
       Assembler.Parser
       Assembler.Emitter
+      Runner
       Util          
         
   default-language: Haskell2010
