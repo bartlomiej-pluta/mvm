@@ -2,8 +2,9 @@ module VirtualMachine.Interpreter where
 
 import Data.Word (Word8)
 import Data.List (intercalate)
-import Control.Monad.Trans.Except (ExceptT, except)
-import Control.Monad.State (liftIO, runState, execState)
+import Control.Monad.Trans.Except (ExceptT, except, runExceptT)
+import Control.Monad.Except (throwError)
+import Control.Monad.State (get, liftIO, lift, runState, evalState)
 import qualified Data.Map as M
 import qualified Data.ByteString as B
 
@@ -57,7 +58,7 @@ dispatchInstr vm units instr = do
   liftIO $ debugPrint vm instr units
 
   case instr of 
-    Simple {}  -> except $ Right $ interpretSimple vm units instr 
+    Simple {}  -> except $ interpretSimple vm units instr 
     Complex {} -> interpretComplex vm units instr
 
 debugPrint :: VM -> Instruction -> [Unit] -> IO ()
@@ -71,23 +72,28 @@ debugPrint vm instr units = if _debug vm
              return ()
            else return ()
 
-interpretSimple :: VM -> [Unit] -> Instruction -> VM
-interpretSimple vm units instr = flip execState vm $ do    
-  pc <- getPc
+interpretSimple :: VM -> [Unit] -> Instruction -> Either String VM
+interpretSimple vm units instr = flip evalState vm $ runExceptT $ do
+  pc <- lift getPc
   let noParams = _noParams instr  
-  let noPops = _noPops instr        
+  let noPops = _noPops instr     
   let paramBytes = take noParams $ drop (pc + 1) $ units
-  let params = map (fromIntegral . _byte) paramBytes    
+  let params = map (fromIntegral . _byte) paramBytes   
   let action = _sAction instr
-  pops <- pop noPops
-  let pushes = action params pops
-  pushS pushes
-  forward $ noParams + 1
-  return ()
-    
+  pops <- lift $ pop noPops
+  if length pops == noPops
+  then do
+    let pushes = action params pops
+    lift $ pushS pushes
+    lift $ forward $ noParams + 1
+    vm' <- lift get
+    return vm'
+  else throwError $ "Attempt to pop from empty stack: tried to pop " ++ (show noPops) ++ " elements, got " ++ (show $ length pops)  
 
 interpretComplex :: VM -> [Unit] -> Instruction -> ExceptT String IO VM
-interpretComplex vm units instr = action vm' params pops
+interpretComplex vm units instr = if length pops == noPops
+  then action vm' params pops
+  else throwError $ "Attempt to pop from empty stack: tried to pop " ++ (show noPops) ++ " elements, got " ++ (show $ length pops)   
   where    
     pc = _pc vm
     noParams = _noParams instr  
