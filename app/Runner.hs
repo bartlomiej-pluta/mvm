@@ -8,7 +8,10 @@ import VirtualMachine.VM (VM(..), empty)
 import qualified VirtualMachine.Interpreter as VM (run)
 
 run :: String -> IO (Either String VM)
-run input = runExceptT $ (except $ return $ input) >>= (except . compile) >>= (except . return . B.pack) >>= VM.run empty
+run = exec empty
 
 runDebug :: String -> IO (Either String VM)
-runDebug input = runExceptT $ (except $ return $ input) >>= (except . compile) >>= (except . return . B.pack) >>= VM.run empty { _debug = True }
+runDebug = exec empty { _debug = True }
+
+exec :: VM -> String -> IO (Either String VM)
+exec vm input = runExceptT $ (except $ return $ input) >>= (except . compile) >>= (except . return . B.pack) >>= VM.run vm

@@ -5,7 +5,7 @@ import qualified Data.Sequence as S
 
 
 import VirtualMachine.VM (VM(..), empty)
-import Runner (run)
+import Runner (run, exec)
 
 done :: [Int] -> Int -> Int -> Either String VM
 done stack pc fp = return $ empty { _stack = S.fromList stack, _pc = pc, _fp = fp, _halt = True }
@@ -655,3 +655,62 @@ spec = do
       --                    └──┴────────────────── call &h
       actual <- run input
       actual `shouldBe` expected 
+  
+  describe "ret" $ do
+    it "unwinds the stack frame and jumps to the caller" $ do
+      let input = "    nop     \n\
+                  \    call &f \n\
+                  \    halt    \n\
+                  \ f: nop     \n\
+                  \    ret     \n"
+      let expected = done [] 3 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "leaves the top stack value as a 'return' value from the function" $ do
+      let input = "    nop     \n\
+                  \    call &f \n\
+                  \    halt    \n\
+                  \ f: nop     \n\
+                  \    push 4  \n\
+                  \    ret     \n"
+      --                   ┌──── this is the top stack value at the time 'ret' instruction being invoked
+      let expected = done [4] 3 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "unwinds the stack frames in the correct order for multiple calls" $ do
+      let input = "    nop     \n\
+                  \    call &f \n\
+                  \    halt    \n\
+                  \ f: nop     \n\
+                  \    call &g \n\
+                  \    push 2  \n\
+                  \    mul     \n\                  
+                  \    ret     \n\
+                  \ g: nop     \n\
+                  \    call &h \n\
+                  \    push 4  \n\
+                  \    add     \n\
+                  \    ret     \n\
+                  \ h: push 6  \n\
+                  \    ret     \n"
+      --                    ┌─────   h: _ -> 6      │ = 6
+      --                    │        g: _ -> h + 4  │ = 10 = 6 + 4
+      --                    │        f: _ -> h * 2  │ = 20 = 10 * 2
+      let expected = done [20] 3 (-1)
+      --                           └───── fp = -1 means the root program: there are no stack frames on the stack
+      actual <- run input
+      actual `shouldBe` expected 
+    it "raises error if not enou" $ do
+      let input = " ret \n\
+                  \ halt  "
+      let expected = Left "Cannot determine previous frame pointer (fp)"
+      let vm = empty { _stack = S.fromList [], _fp = 0 }
+      actual <- exec vm input
+      actual `shouldBe` expected  
+    it "raises error if stack is not big enough" $ do
+      let input = " ret    \n\
+                  \ halt   "
+      let expected = Left "Cannot determine return address"
+      let vm = empty { _stack = S.fromList [-1], _fp = 0 }
+      actual <- exec vm input
+      actual `shouldBe` expected      
