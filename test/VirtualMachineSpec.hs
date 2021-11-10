@@ -716,7 +716,7 @@ spec = do
       actual `shouldBe` expected      
 
   describe "ld" $ do
-    it "should lift the function argument to the stack top" $ do
+    it "lifts the function argument to the stack top" $ do
       let input = "    push 14 \n\
                   \    call &f \n\
                   \    nop     \n\
@@ -725,7 +725,7 @@ spec = do
       let expected = done [14, 4, -1, 14] 7 1
       actual <- run input
       actual `shouldBe` expected  
-    it "should lift multiple function arguments to the stack top" $ do
+    it "lifts multiple function arguments to the stack top" $ do
       let input = "    push 14 \n\
                   \    push 11 \n\
                   \    push 4  \n\
@@ -825,3 +825,38 @@ spec = do
       let expected = done [25] 8 (-1)
       actual <- run input
       actual `shouldBe` expected  
+
+  describe "examples" $ do
+    it "example #1" $ do
+      let input = " main: push 2    \n\
+                  \       push 3    \n\
+                  \       call &prd \n\
+                  \       clr 2     \n\
+                  \       push 5    \n\
+                  \       call &sum \n\
+                  \       clr 2     \n\
+                  \       halt      \n\
+                  \                 \n\
+                  \ sum:  ld 0      \n\
+                  \       ld 1      \n\
+                  \       add       \n\
+                  \       ret       \n\
+                  \                 \n\
+                  \ prd:  ld 0      \n\
+                  \       ld 1      \n\
+                  \       mul       \n\
+                  \       ret       "
+      let expected = done [2*3+5] 14 (-01)
+      actual <- run input
+      actual `shouldBe` expected 
+
+    it "example #2" $ do
+      let input = " main: push 100  \n\
+                  \ loop: push 1    \n\
+                  \       sub       \n\
+                  \       dup       \n\
+                  \       jne &loop \n\
+                  \       halt      "
+      let expected = done [0] 8 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
