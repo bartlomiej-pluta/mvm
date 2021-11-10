@@ -110,7 +110,7 @@ load vm (index:_) _ = do
   let stack = _stack vm
   let stackSize = S.length stack
 
-  val <- except $ evalState (runExceptT (getAt (stackSize - fp + index) ("Index " ++ (show index) ++ "out of stack bounds") )) vm
+  val <- except $ evalState (runExceptT (getAt (stackSize - fp + index) ("Index " ++ (show index) ++ " out of stack bounds") )) vm
 
   return $ execState (push [val] >> forward 2) vm
 load _ [] _ = except $ Left $ "Local parameter index expected"  

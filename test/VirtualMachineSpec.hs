@@ -622,7 +622,7 @@ spec = do
                   \ halt      \n\
                   \ fun: halt "
       --                       ┌────┬─ fp points to the beginning of active stack frame
-      --                   1   0    │
+      -- stack indexes:    1   0    │
       --                       │    │
       let expected = done [4, -1] 6 0
       --                   ├───┤
@@ -644,7 +644,7 @@ spec = do
                   \    call &h \n\
                   \ h: halt    "
       --                       ┌──────────────────────┬─ fp points to the beginning of active stack frame
-      --                    6  5   4  3  2  1   0     │
+      -- stack indexes:     6  5   4  3  2  1   0     │
       --                       │                      │
       let expected = done [14, 3, 10, 0, 1, 3, -1] 14 5
       --                    ├──┤   ├──┤  │  ├───┤
@@ -700,17 +700,128 @@ spec = do
       --                           └───── fp = -1 means the root program: there are no stack frames on the stack
       actual <- run input
       actual `shouldBe` expected 
-    it "raises error if not enou" $ do
+    it "raises error if there is no previous fp on the stack (stack is empty)" $ do
+      let vm = empty { _stack = S.fromList [], _fp = 0 }
       let input = " ret \n\
                   \ halt  "
-      let expected = Left "Cannot determine previous frame pointer (fp)"
-      let vm = empty { _stack = S.fromList [], _fp = 0 }
+      let expected = Left "Cannot determine previous frame pointer (fp)"      
       actual <- exec vm input
       actual `shouldBe` expected  
-    it "raises error if stack is not big enough" $ do
+    it "raises error if there is no return address on the stack (stack size is 1)" $ do
+      let vm = empty { _stack = S.fromList [-1], _fp = 0 }
       let input = " ret    \n\
                   \ halt   "
-      let expected = Left "Cannot determine return address"
-      let vm = empty { _stack = S.fromList [-1], _fp = 0 }
+      let expected = Left "Cannot determine return address"      
       actual <- exec vm input
       actual `shouldBe` expected      
+
+  describe "ld" $ do
+    it "should lift the function argument to the stack top" $ do
+      let input = "    push 14 \n\
+                  \    call &f \n\
+                  \    nop     \n\
+                  \ f: ld 0    \n\
+                  \    halt"
+      let expected = done [14, 4, -1, 14] 7 1
+      actual <- run input
+      actual `shouldBe` expected  
+    it "should lift multiple function arguments to the stack top" $ do
+      let input = "    push 14 \n\
+                  \    push 11 \n\
+                  \    push 4  \n\
+                  \    call &f \n\
+                  \    nop     \n\
+                  \ f: ld 2    \n\
+                  \    ld 1    \n\
+                  \    ld 0    \n\
+                  \    halt"
+      let expected = done [4, 11, 14, 8, -1, 4, 11, 14] 15 3
+      actual <- run input
+      actual `shouldBe` expected  
+    it "can be combined with 'call' and 'ret' to define a function" $ do
+      let input = "      push 14   \n\
+                  \      push 11   \n\
+                  \      call &sum \n\
+                  \      halt      \n\
+                  \ sum: ld 1      \n\
+                  \      ld 0      \n\
+                  \      add       \n\
+                  \      ret       "
+      let expected = done [25, 11, 14] 6 (-1)
+      actual <- run input
+      actual `shouldBe` expected  
+    it "raises error if stack is empty" $ do      
+      let input = " ld 0  \n\
+                  \ halt  "
+      let expected = Left "Index 0 out of stack bounds"
+      let vm = empty { _stack = S.fromList [], _fp = 0 }
+      actual <- exec vm input            
+      actual `shouldBe` expected  
+    it "raises error if stack contains only previous fp" $ do
+      let vm = empty { _stack = S.fromList [-1], _fp = 0 }
+      let input = " ld 0    \n\
+                  \ halt   "
+      let expected = Left "Index 0 out of stack bounds"      
+      actual <- exec vm input
+      actual `shouldBe` expected    
+    it "raises error if stack contains only previous fp and return address" $ do
+      let vm = empty { _stack = S.fromList [2, -1], _fp = 0 }
+      let input = " ld 0    \n\
+                  \ halt   "
+      let expected = Left "Index 0 out of stack bounds"      
+      actual <- exec vm input
+      actual `shouldBe` expected 
+    it "loads the first (0) argument if stack contains only previous fp, return address and single argument" $ do
+      let vm = empty { _stack = S.fromList [2, -1, 3], _fp = 1 }
+      let input = " ld 0    \n\
+                  \ halt   "
+      let expected = done [3, 2, -1, 3] 2 1      
+      actual <- exec vm input
+      actual `shouldBe` expected 
+    it "raises error when accessint second (1) argument if stack contains only previous fp, return address and single argument" $ do
+      let vm = empty { _stack = S.fromList [2, -1, 3], _fp = 1 }
+      let input = " ld 1    \n\
+                  \ halt   "
+      let expected = Left "Index 1 out of stack bounds"      
+      actual <- exec vm input
+      actual `shouldBe` expected 
+    it "loads the 11th argument if it exists" $ do
+      --                                         ┌─────────────────────────────────────────────────┬── fp points the beginning of active stack frame
+      --                                         │                                                 │
+      -- stack indexes:                  14 13  12  11  10  9  8  7  6  5  4  3  2  1  0           │ 
+      --                                         │                                                 │
+      let vm = empty { _stack = S.fromList [ 2, -1, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ], _fp = 12 }
+      --                                         │                                     │
+      -- argument indexes (ld):                  └─ 0   1   2  3  4  5  6  7  8  9  10 11
+      --                                                                               └───── ld 11 results in pushing 0 on to the top of the stack        
+      let input = " ld 11    \n\
+                  \ halt   "
+      let expected = done [0, 2, -1, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] 2 12    
+      actual <- exec vm input
+      actual `shouldBe` expected 
+
+  describe "clr" $ do
+    it "wipes 4 values before the top of the stack" $ do
+      let input = " push 1 \n\
+                  \ push 2 \n\
+                  \ push 3 \n\
+                  \ push 4 \n\
+                  \ push 5 \n\
+                  \ clr 4  \n\
+                  \ halt   "
+      let expected = done [5] 12 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "can be combined with 'call' and 'ret' to define a function and perform a clean by caller" $ do
+      let input = "      push 14   \n\
+                  \      push 11   \n\
+                  \      call &sum \n\
+                  \      clr 2     \n\
+                  \      halt      \n\
+                  \ sum: ld 1      \n\
+                  \      ld 0      \n\
+                  \      add       \n\
+                  \      ret       "
+      let expected = done [25] 8 (-1)
+      actual <- run input
+      actual `shouldBe` expected  
