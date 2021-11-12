@@ -1,7 +1,8 @@
 module VirtualMachine.Instruction where
 
-import Data.Char (chr)
+import Data.Char (chr, ord)
 import Data.Word (Word8)
+import System.IO (stdin, hGetChar)
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans (lift, liftIO)
 import Control.Monad.Trans.Except (ExceptT, except)
@@ -49,7 +50,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
                , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
                , Complex { _op = Ld,   _noParams = 1, _noPops = 0, _cAction = load                                                 }
-               , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = niy In                                               }
+               , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = input                                                }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                , Complex { _op = Clr,  _noParams = 1, _noPops = 0, _cAction = clear                                                }
                ]
@@ -112,13 +113,19 @@ jumpIf p (addr:_) (top:_) = lift $ do
 jumpIf _ [] _  = throwError "Address expected"
 jumpIf _ _  [] = throwError "Empty stack - nothing to compare"  
 
+input :: Params -> Pops -> ExceptT String Machine ()
+input _ _ = lift $ do
+  c <- liftIO $ hGetChar stdin
+  push [ord c]
+  forward 1
+  return()
+
 output :: Params -> Pops -> ExceptT String Machine ()
 output _ (char:_) = lift $ do
   liftIO $ putStr $ [chr char]
   forward 1
   return ()
 output _ [] = except $ Left $ "Empty stack - nothing to output"
-
 
 load :: Params -> Pops -> ExceptT String Machine ()
 load (index:_) _ = do

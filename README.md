@@ -30,6 +30,7 @@ List of available instructions:
 | ``0x18`` | ``CLR x``  | Wipe out ``x`` values before the top value from the stack                      |
 
 ## Example
+### Example 1
 The `2*3+5` formula written as the MVM assembly code:
 ```asm
 main: push 2
@@ -41,15 +42,15 @@ main: push 2
       clr 2
       halt
 
-sum: ld 0
-     ld 1
-     add
-     ret
+sum:  ld 0
+      ld 1
+      add
+      ret
 
-prd: ld 0
-     ld 1
-     mul
-     ret
+prd:  ld 0
+      ld 1
+      mul
+      ret
 ```
 The result of execution with the `debug = True` flag:
 ```
@@ -90,4 +91,23 @@ VM {_pc = 14, _fp = -1, _stack = fromList [11], _halt = False, _debug = True}
 Done:
 VM {_pc = 14, _fp = -1, _stack = fromList [11], _halt = True, _debug = True}
 
+```
+### Example 2
+The base I/O example - simple echo:
+```asm
+read:  in
+       dup
+       out
+       push 0x0A
+       sub       
+       jne &read ; loop until the input != new line (0x0A)
+       halt
+```
+The execution for the input string `Hello, world!`:
+```
+Hello, world!
+
+
+Done:
+VM {_pc = 8, _fp = -1, _stack = fromList [], _halt = True, _debug = False}
 ```
