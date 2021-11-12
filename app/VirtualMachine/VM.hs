@@ -1,8 +1,11 @@
 module VirtualMachine.VM where
 
 import Data.Foldable (toList)
-import Control.Monad.State (State, get, put)
-import Control.Monad.Trans.Except (ExceptT, except)
+import Control.Monad.Trans (lift)
+import Control.Monad.State (get, put)
+import Control.Monad.Except (throwError)
+import Control.Monad.Trans.State (StateT)
+import Control.Monad.Trans.Except (ExceptT)
 import qualified Data.Sequence as S
 
 
@@ -40,6 +43,8 @@ data Op = Nop  -- 0x00
         | Clr  -- 0x18
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
+type Machine = StateT VM IO
+
 empty :: VM
 empty = VM { _pc     = 0
            , _fp     = -1
@@ -50,51 +55,62 @@ empty = VM { _pc     = 0
 
 -------------------------------------------------------------------------------
 
-push :: [Int] -> State VM ()
-push = pushS . S.fromList
+getPc :: Machine Int
+getPc = get >>= (return . _pc)
 
-pushS :: S.Seq Int -> State VM ()
-pushS numbers = do
+getFp :: Machine Int
+getFp = get >>= (return . _fp)
+
+isHalted :: Machine Bool
+isHalted = get >>= (return . _halt)
+
+isDebug :: Machine Bool
+isDebug = get >>= (return . _debug)
+
+getAt :: Int -> String -> ExceptT String Machine Int
+getAt index err = do
+  vm <- lift $ get
+  let stack = _stack vm  
+  case (stack S.!? index) of
+    (Just i) -> return i
+    Nothing  -> throwError err
+
+getStackSize :: Machine Int
+getStackSize = get >>= (return . length . _stack)
+
+setPc :: Int -> Machine ()
+setPc pc = do
   vm <- get
-  put vm { _stack = numbers <> _stack vm  }
-  return ()
+  put vm { _pc = pc }
 
-pop :: Int -> State VM [Int]
+setFp :: Int -> Machine ()
+setFp fp = do
+  vm <- get
+  put vm { _fp = fp }
+
+setHalt :: Bool -> Machine ()
+setHalt halt = do
+  vm <- get
+  put vm { _halt = halt }
+
+pop :: Int -> Machine [Int]
 pop count = do
   vm <- get
   let stack = _stack vm
   put vm { _stack = S.drop count $ stack }
   return $ toList $ S.take count $ stack
 
-getAt :: Int -> String -> ExceptT String (State VM) Int
-getAt index err = do
+push :: [Int] -> Machine ()
+push = pushS . S.fromList
+
+pushS :: S.Seq Int -> Machine ()
+pushS numbers = do
   vm <- get
-  let stack = _stack vm
-  case (stack S.!? index) of
-    (Just i) -> return i
-    Nothing  -> except $ Left err
+  put vm { _stack = numbers <> _stack vm  }
+  return ()  
 
-getPc :: State VM Int
-getPc = get >>= (return . _pc)
-
-getFp :: State VM Int
-getFp = get >>= (return . _fp)
-
-getStackSize :: State VM Int
-getStackSize = get >>= (return . length . _stack)
-
-setPc :: Int -> State VM ()
-setPc pc' = do
-  vm <- get
-  put vm { _pc = pc' }
-
-setFp :: Int -> State VM ()
-setFp fp' = do
-  vm <- get
-  put vm { _fp = fp' }
-
-forward :: Int -> State VM () 
+forward :: Int -> Machine ()
 forward offset = do
   vm <- get
   put vm { _pc = _pc vm + offset }
-  return ()  
+  return () 

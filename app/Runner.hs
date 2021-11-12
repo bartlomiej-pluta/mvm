@@ -1,5 +1,7 @@
 module Runner where
 
+import Control.Monad.Trans (liftIO)
+
 import Control.Monad.Trans.Except (runExceptT, except)
 import qualified Data.ByteString as B
 
@@ -14,4 +16,4 @@ runDebug :: String -> IO (Either String VM)
 runDebug = exec empty { _debug = True }
 
 exec :: VM -> String -> IO (Either String VM)
-exec vm input = runExceptT $ (except $ return $ input) >>= (except . compile) >>= (except . return . B.pack) >>= VM.run vm
+exec vm input = runExceptT $ return input >>= (except . compile) >>= (liftIO . VM.run vm . B.pack) >>= except >>= return
