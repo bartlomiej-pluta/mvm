@@ -5,7 +5,7 @@ import Data.Word (Word8)
 import System.IO (stdin, hGetChar)
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans (lift, liftIO)
-import Control.Monad.Trans.Except (ExceptT, except)
+import Control.Monad.Trans.Except (ExceptT)
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 
@@ -39,6 +39,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Simple  { _op = Div,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
                , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
                , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
+               , Simple  { _op = Over, _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y, x, y])                  }
                , Complex { _op = Halt, _noParams = 0, _noPops = 0, _cAction = halt                                                 }
                , Complex { _op = Call, _noParams = 1, _noPops = 0, _cAction = call                                                 }
                , Complex { _op = Ret,  _noParams = 0, _noPops = 0, _cAction = ret                                                  }
@@ -53,6 +54,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = input                                                }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                , Complex { _op = Clr,  _noParams = 1, _noPops = 0, _cAction = clear                                                }
+               , Complex { _op = Roll, _noParams = 0, _noPops = 0, _cAction = roll                                                 }
                ]
 
 instructionByOp :: M.Map Op Instruction
@@ -125,7 +127,7 @@ output _ (char:_) = lift $ do
   liftIO $ putStr $ [chr char]
   forward 1
   return ()
-output _ [] = except $ Left $ "Empty stack - nothing to output"
+output _ [] = throwError $ "Empty stack - nothing to output"
 
 load :: Params -> Pops -> ExceptT String Machine ()
 load (index:_) _ = do
@@ -149,4 +151,19 @@ clear (count:_) _ = lift $ do
   push top
   forward 2
   return ()
-clear [] _ = except $ Left "Number of elements to be cleaned expected"
+clear [] _ = throwError "Number of elements to be cleaned expected"
+
+roll :: Params -> Pops -> ExceptT String Machine ()
+roll _ _ = lift $ do
+  fp <- getFp
+  stackSize <- getStackSize
+  let offset = if fp == -1 then 0 else (fp + 2)
+  substack <- pop $ stackSize - offset
+  if null substack
+  then return ()
+  else do
+    let (x:xs) = substack
+    push $ xs ++ [x]
+    return ()
+  forward 1
+  return ()

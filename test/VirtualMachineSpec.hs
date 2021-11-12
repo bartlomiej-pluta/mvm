@@ -826,6 +826,141 @@ spec = do
       actual <- run input
       actual `shouldBe` expected  
 
+  describe "roll" $ do
+    it "supports stack with 5 elements" $ do
+      let input = " push 4 \n\
+                  \ push 5 \n\
+                  \ push 6 \n\
+                  \ push 7 \n\ 
+                  \ push 8 \n\               
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [7, 6, 5, 4, 8] 11 (-1)
+      actual <- run input
+      actual `shouldBe` expected     
+    it "supports stack with 4 elements" $ do
+      let input = " push 4 \n\
+                  \ push 5 \n\
+                  \ push 6 \n\
+                  \ push 7 \n\                
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [6, 5, 4, 7] 9 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "supports stack with 3 elements" $ do
+      let input = " push 4 \n\
+                  \ push 5 \n\
+                  \ push 6 \n\
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [5, 4, 6] 7 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "supports stack with 2 elements" $ do
+      let input = " push 4 \n\
+                  \ push 5 \n\
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [4, 5] 5 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "supports singleton stack" $ do
+      let input = " push 4 \n\
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [4] 3 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "supports empty stack" $ do
+      let input = " roll \n\
+                  \ halt "
+      let expected = done [] 1 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+    it "can be composed" $ do
+      let input = " push 4 \n\
+                  \ push 5 \n\
+                  \ push 6 \n\
+                  \ push 7 \n\ 
+                  \ push 8 \n\               
+                  \ roll   \n\
+                  \ roll   \n\
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [5, 4, 8, 7, 6] 13 (-1)
+      actual <- run input
+      actual `shouldBe` expected     
+    it "does not change the stack order when rolling number equals the stack size" $ do
+      let input = " push 4 \n\
+                  \ push 5 \n\
+                  \ push 6 \n\
+                  \ push 7 \n\ 
+                  \ push 8 \n\               
+                  \ roll   \n\
+                  \ roll   \n\
+                  \ roll   \n\
+                  \ roll   \n\
+                  \ roll   \n\
+                  \ halt   "
+      let expected = done [8, 7, 6, 5, 4] 15 (-1)
+      actual <- run input
+      actual `shouldBe` expected       
+    it "works in the context of current frame" $ do
+      let input = "      push 1    \n\
+                  \      push 2    \n\
+                  \      push 3    \n\
+                  \      call &foo \n\
+                  \ foo: push 10   \n\
+                  \      push 20   \n\
+                  \      push 30   \n\
+                  \      call &bar \n\
+                  \ bar: push 70   \n\
+                  \      push 80   \n\
+                  \      push 90   \n\
+                  \      roll      \n\
+                  \      halt      "
+      let expected = done [80, 70, 90, 16, 3, 30, 20, 10, 8, -1, 3, 2, 1] 23 8
+      --                   ├────────┤         ├────────┤         ├─────┤
+      --                   │        │         │        │         └─────┴── there are no 'roll' instructions under the root so the data is in the correct order
+      --                   │        │         └────────┴────────────────── as above - no 'roll' instruction under the 'foo' function
+      --                   └────────┴───────────────────────────────────── the 'roll' instruction is called under the 'bar' function, so the numbers are rolled  
+      actual <- run input
+      actual `shouldBe` expected      
+
+  describe "over" $ do
+    it "pushes the second value from the top" $ do
+      let input = " push 1 \n\
+                  \ push 2 \n\
+                  \ over   \n\
+                  \ halt   "
+      let expected = done [1, 2, 1] 5 (-1)
+      actual <- run input
+      actual `shouldBe` expected  
+    it "can be used multiple times" $ do
+      let input = " push 1 \n\
+                  \ push 2 \n\
+                  \ over   \n\
+                  \ over   \n\
+                  \ over   \n\
+                  \ halt   "
+      let expected = done [1, 2, 1, 2, 1] 7 (-1)
+      actual <- run input
+      actual `shouldBe` expected  
+    it "raises error if empty stack" $ do
+      let input = " over \n\
+                  \ halt "
+      let expected = Left "Attempt to pop from empty stack: tried to pop 2 elements, got 0"
+      actual <- run input
+      actual `shouldBe` expected           
+    it "raises error if stack is not big enough" $ do
+      let input = " push 5 \n\
+                  \ over   \n\
+                  \ halt   "
+      let expected = Left "Attempt to pop from empty stack: tried to pop 2 elements, got 1"
+      actual <- run input
+      actual `shouldBe` expected    
+
   describe "examples" $ do
     it "example #1" $ do
       let input = " main: push 2    \n\
