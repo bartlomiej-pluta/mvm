@@ -389,23 +389,27 @@ spec = do
     it "jumps if top stack value == 0" $ do
       let input = " push 0     \n\
                   \ je &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [1] 9 (-1)
+      let expected = done [1] 11 (-1)
       actual <- run input
       actual `shouldBe` expected  
     it "proceeds if top stack value != 0" $ do
       let input = " push 1     \n\
                   \ je &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [0] 6 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "raises error if empty stack" $ do
@@ -419,23 +423,27 @@ spec = do
     it "jumps if top stack value != 0" $ do
       let input = " push 4      \n\
                   \ jne &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [1] 9 (-1)
+      let expected = done [1] 11 (-1)
       actual <- run input
       actual `shouldBe` expected  
     it "proceeds if top stack value == 0" $ do
       let input = " push 0      \n\
                   \ jne &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [0] 6 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "raises error if empty stack" $ do
@@ -449,35 +457,41 @@ spec = do
     it "jumps if top stack value > 0" $ do
       let input = " push 1     \n\
                   \ jg &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [1] 9 (-1)
+      let expected = done [1] 11 (-1)
       actual <- run input
       actual `shouldBe` expected  
     it "proceeds if top stack value == 0" $ do
       let input = " push 0     \n\
                   \ jg &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [0] 6 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "proceeds if top stack value < 0" $ do
       let input = " push 1     \n\
                   \ neg        \n\
                   \ jg &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [0] 7 (-1)
+      let expected = done [0] 8 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "raises error if empty stack" $ do
@@ -491,35 +505,41 @@ spec = do
     it "proceeds if top stack value > 0" $ do
       let input = " push 1     \n\
                   \ jl &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [0] 6 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected  
     it "proceeds if top stack value == 0" $ do
       let input = " push 0     \n\
                   \ jl &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [0] 6 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "jumps if top stack value < 0" $ do
       let input = " push 1     \n\
                   \ neg        \n\
                   \ jl &jumped \n\
+                  \ pop         \n\
                   \ push 0     \n\
                   \ halt       \n\
                   \ jumped:    \n\
+                  \ pop         \n\
                   \ push 1     \n\
                   \ halt       "
-      let expected = done [1] 10 (-1)
+      let expected = done [1] 12 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "raises error if empty stack" $ do
@@ -533,35 +553,41 @@ spec = do
     it "jumps if top stack value > 0" $ do
       let input = " push 1      \n\
                   \ jge &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [1] 9 (-1)
+      let expected = done [1] 11 (-1)
       actual <- run input
       actual `shouldBe` expected  
     it "jumps if top stack value == 0" $ do
       let input = " push 0      \n\
                   \ jge &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [1] 9 (-1)
+      let expected = done [1] 11 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "proceeds if top stack value < 0" $ do
       let input = " push 1      \n\
                   \ neg         \n\
                   \ jge &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [0] 7 (-1)
+      let expected = done [0] 8 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "raises error if empty stack" $ do
@@ -575,35 +601,41 @@ spec = do
     it "proceeds if top stack value > 0" $ do
       let input = " push 1      \n\
                   \ jle &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [0] 6 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected  
     it "jumps if top stack value == 0" $ do
       let input = " push 0      \n\
                   \ jle &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [1] 9 (-1)
+      let expected = done [1] 11 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "jumps if top stack value < 0" $ do
       let input = " push 1      \n\
                   \ neg         \n\
                   \ jle &jumped \n\
+                  \ pop         \n\
                   \ push 0      \n\
                   \ halt        \n\
                   \ jumped:     \n\
+                  \ pop         \n\
                   \ push 1      \n\
                   \ halt        "
-      let expected = done [1] 10 (-1)
+      let expected = done [1] 12 (-1)
       actual <- run input
       actual `shouldBe` expected   
     it "raises error if empty stack" $ do
@@ -989,9 +1021,8 @@ spec = do
       let input = " main: push 100  \n\
                   \ loop: push 1    \n\
                   \       sub       \n\
-                  \       dup       \n\
                   \       jne &loop \n\
                   \       halt      "
-      let expected = done [0] 8 (-1)
+      let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected 

@@ -42,7 +42,7 @@ data Op = Nop  -- 0x00
         | Out  -- 0x17
         | Clr  -- 0x18
         | Roll -- 0x19
-        | Over -- 0x20
+        | Over -- 0x1A
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 type Machine = StateT VM IO

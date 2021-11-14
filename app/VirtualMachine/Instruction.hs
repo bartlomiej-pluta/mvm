@@ -110,6 +110,7 @@ jump [] _  = throwError "Address expected"
 jumpIf :: (Int -> Int -> Bool) -> Params -> Pops -> ExceptT String Machine ()
 jumpIf p (addr:_) (top:_) = lift $ do
   pc <- getPc
+  push [top]
   setPc $ if top `p` 0 then addr else pc + 2
   return ()
 jumpIf _ [] _  = throwError "Address expected"
