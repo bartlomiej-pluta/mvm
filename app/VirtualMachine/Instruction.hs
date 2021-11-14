@@ -3,13 +3,14 @@ module VirtualMachine.Instruction where
 import Data.Char (chr, ord)
 import Data.Word (Word8)
 import System.IO (stdin, hGetChar)
+import Control.Monad (unless)
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans (lift, liftIO)
 import Control.Monad.Trans.Except (ExceptT)
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 
-import VirtualMachine.VM (Op(..), Machine, push, pop, forward, getAt, getPc, getFp, getStackSize, setPc, setFp, setHalt)
+import VirtualMachine.VM (Op(..), Machine, push, pop, forward, getAt, getPc, getFp, getStackSize, setAt, setPc, setFp, setHalt)
 
 
 type Params = [Int]
@@ -55,6 +56,8 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                , Complex { _op = Clr,  _noParams = 1, _noPops = 0, _cAction = clear                                                }
                , Complex { _op = Roll, _noParams = 0, _noPops = 0, _cAction = roll                                                 }
+               , Complex { _op = Ldl,  _noParams = 1, _noPops = 0, _cAction = loadLocal                                            }
+               , Complex { _op = Stl,  _noParams = 1, _noPops = 1, _cAction = storeLocal                                           }
                ]
 
 instructionByOp :: M.Map Op Instruction
@@ -168,3 +171,25 @@ roll _ _ = lift $ do
     return ()
   forward 1
   return ()
+
+loadLocal :: Params -> Pops -> ExceptT String Machine ()
+loadLocal (index:_) _ = do
+  fp <- lift getFp
+  unless (fp > -1) (throwError "No active stack frame to load local variable")
+  stackSize <- lift getStackSize
+  val <- getAt (stackSize - fp - 3 - index) $ "No stack value on the active frame under the index: " ++ (show index)  
+  lift $ push [val]
+  lift $ forward 2
+  return ()
+loadLocal [] _ = throwError "Local variable index expected"
+
+storeLocal :: Params -> Pops -> ExceptT String Machine ()
+storeLocal (index:_) (val:_) = do
+  fp <- lift getFp
+  unless (fp > -1) (throwError "No active stack frame to store local variable")
+  stackSize <- lift getStackSize
+  lift $ setAt (stackSize - fp - 3 - index) val
+  lift $ forward 2
+  return ()
+storeLocal [] _ = throwError "Local variable index expected"
+storeLocal _ [] = throwError "Empty stack - nothing to store"

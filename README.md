@@ -24,10 +24,14 @@ List of available instructions:
 | ``0x12`` | ``JL x``   | Jump to ``x`` **if** top element ``< 0 ``                                      |
 | ``0x13`` | ``JGE x``  | Jump to ``x`` **if** top element ``>= 0``                                      |
 | ``0x14`` | ``JLE x``  | Jump to ``x`` **if** top element ``<= 0``                                      |
-| ``0x15`` | ``LD x``   | Push local variable to stack                                                   |
+| ``0x15`` | ``LDA x``  | Push local variable to stack                                                   |
 | ``0x16`` | ``IN``     | Read input from stdin                                                          |
 | ``0x17`` | ``OUT``    | Put top stack value to stdout as char                                          |
 | ``0x18`` | ``CLR x``  | Wipe out ``x`` values before the top value from the stack                      |
+| ``0x19`` | ``ROLL``   | Rotate the stack/stack frame                                                   |
+| ``0x1A`` | ``OVER``   | Duplicate and push the second value from the top                               |
+| ``0x1B`` | ``LDL x``  | Lift the ``x`` from the _fp_ variable to the top of the stack                  |
+| ``0x1C`` | ``STL x``  | Store the top stack value under the ``x`` from the _fp_ variable               |
 
 ## Example
 ### Example 1
@@ -42,13 +46,13 @@ main: push 2
       clr 2
       halt
 
-sum:  ld 0
-      ld 1
+sum:  lda 0
+      lda 1
       add
       ret
 
-prd:  ld 0
-      ld 1
+prd:  lda 0
+      lda 1
       mul
       ret
 ```
@@ -110,4 +114,76 @@ Hello, world!
 
 Done:
 VM {_pc = 8, _fp = -1, _stack = fromList [], _halt = True, _debug = False}
+```
+### Example 3
+The power ($2^{10}$) computation - loop variant
+```asm
+push 2
+push 10
+call &pow
+clr 2
+halt
+
+pow:  lda 1     ; base
+      lda 0     ; exp
+      push 1    ; acc
+
+                ;               | Stack:
+loop: ldl 1     ; if exp == 0   | exp
+      je &done  ; then return   | exp
+      pop       ;               |
+                ;               | 
+      ldl 2     ; Evaluate      | acc
+      ldl 0     ; next power    | acc      base
+      mul       ;               | acc*base
+      stl 2     ;               | 
+                ;               |
+      ldl 1     ; Decrement exp | exp
+      push 1    ;               | exp      1
+      sub       ;               | exp-1
+      stl 1     ;               |
+      jmp &loop ;               |
+      
+done: ldl 2     ;               | ...      acc
+      ret       ;               | acc
+```
+The result of execution:
+```
+Done:
+VM {_pc = 8, _fp = -1, _stack = fromList [1024], _halt = True, _debug = False}
+```
+### Example 4
+The power ($2^{10}$) computation - recursive variant
+```asm
+push 2          ; base
+push 10         ; exp
+call &pow
+clr 2
+halt
+
+pow:  lda 1     ; base
+      lda 0     ; exp
+
+      ldl 1     ; push exp to top
+      je &edge  ; the edge case: if exp == 0  then return 1
+      pop       ; pop exp
+
+                ; | Stack:
+      ldl 0     ; | base
+      ldl 1     ; | base               exp
+      push 1    ; | base               exp           1
+      sub       ; | base               exp-1
+      call &pow ; | base               exp-1         base^(exp-1)]
+      clr 1     ; | base               base^(exp-1)
+      mul       ; | base*base^(exp-1)
+      ret       ; | base*base^(exp-1)
+      
+edge: pop    
+      push 1    ; return 1
+      ret       
+```
+The result of execution:
+```
+Done:
+VM {_pc = 8, _fp = -1, _stack = fromList [1024], _halt = True, _debug = False}
 ```

@@ -993,6 +993,52 @@ spec = do
       actual <- run input
       actual `shouldBe` expected    
 
+  describe "ldl" $ do
+    it "lifts stack value to the top" $ do
+      let input = "      call &fun \n\
+                  \ fun: push 1    \n\
+                  \      push 2    \n\
+                  \      push 3    \n\
+                  \      push 4    \n\
+                  \      push 5    \n\                  
+                  \      ldl 0     \n\
+                  \      halt      "
+      let expected = done [1, 5, 4, 3, 2, 1, 2, -1] 14 0
+      actual <- run input
+      actual `shouldBe` expected      
+    it "raises error if not called in the function context (fp == -1)" $ do
+      let input = " push 1 \n\
+                  \ push 2 \n\
+                  \ push 3 \n\
+                  \ ldl 0  \n\
+                  \ halt   "
+      let expected = Left "No active stack frame to load local variable"
+      actual <- run input
+      actual `shouldBe` expected
+
+  describe "ldl" $ do
+    it "updates local variable value" $ do
+      let input = "      call &fun \n\
+                  \ fun: push 1    \n\
+                  \      push 2    \n\
+                  \      push 3    \n\
+                  \      push 4    \n\
+                  \      push 5    \n\
+                  \      stl 0     \n\
+                  \      halt      "
+      let expected = done [4, 3, 2, 5, 2, -1] 14 0
+      actual <- run input
+      actual `shouldBe` expected      
+    it "raises error if not called in the function context (fp == -1)" $ do
+      let input = " push 1 \n\
+                  \ push 2 \n\
+                  \ push 3 \n\
+                  \ stl 0  \n\
+                  \ halt   "
+      let expected = Left "No active stack frame to store local variable"
+      actual <- run input
+      actual `shouldBe` expected      
+
   describe "examples" $ do
     it "example #1" $ do
       let input = " main: push 2    \n\
@@ -1024,5 +1070,58 @@ spec = do
                   \       jne &loop \n\
                   \       halt      "
       let expected = done [0] 7 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+
+    it "example #3: power - loop variant" $ do
+      let input = "       push 3    \n\
+                  \       push 6   \n\
+                  \       call &pow \n\
+                  \       clr 2     \n\
+                  \       halt      \n\
+                  \ pow:  lda 1     \n\  
+                  \       lda 0     \n\ 
+                  \       push 1    \n\                  
+                  \ loop: ldl 1     \n\ 
+                  \       je &done  \n\ 
+                  \       pop       \n\                   
+                  \       ldl 2     \n\ 
+                  \       ldl 0     \n\ 
+                  \       mul       \n\ 
+                  \       stl 2     \n\ 
+                  \       ldl 1     \n\ 
+                  \       push 1    \n\ 
+                  \       sub       \n\ 
+                  \       stl 1     \n\ 
+                  \       jmp &loop \n\ 
+                  \ done: ldl 2     \n\ 
+                  \       ret       "
+      let expected = done [3 ^ (6 :: Int)] 8 (-1)
+      actual <- run input
+      actual `shouldBe` expected 
+
+    it "example #4: power - recursive variant" $ do
+      let input = " push 4          \n\             
+                  \ push 7          \n\     
+                  \ call &pow       \n\
+                  \ clr 2           \n\
+                  \ halt            \n\
+                  \ pow:  lda 1     \n\
+                  \       lda 0     \n\
+                  \       ldl 1     \n\
+                  \       je &edge  \n\
+                  \       pop       \n\
+                  \       ldl 0     \n\
+                  \       ldl 1     \n\
+                  \       push 1    \n\
+                  \       sub       \n\
+                  \       call &pow \n\
+                  \       clr 1     \n\    
+                  \       mul       \n\    
+                  \       ret       \n\     
+                  \ edge: pop       \n\
+                  \       push 1    \n\  
+                  \       ret       "
+      let expected = done [4 ^ (7 :: Int)] 8 (-1)
       actual <- run input
       actual `shouldBe` expected 

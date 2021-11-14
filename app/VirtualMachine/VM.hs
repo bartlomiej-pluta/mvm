@@ -43,6 +43,8 @@ data Op = Nop  -- 0x00
         | Clr  -- 0x18
         | Roll -- 0x19
         | Over -- 0x1A
+        | Ldl  -- 0x1B
+        | Stl  -- 0x1C
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 type Machine = StateT VM IO
@@ -76,6 +78,13 @@ getAt index err = do
   case (stack S.!? index) of
     (Just i) -> return i
     Nothing  -> throwError err
+
+setAt :: Int -> Int -> Machine ()
+setAt index val = do
+  vm <- get
+  let stack = _stack vm
+  let stack' = S.update index val stack
+  put vm { _stack = stack' }
 
 getStackSize :: Machine Int
 getStackSize = get >>= (return . length . _stack)
