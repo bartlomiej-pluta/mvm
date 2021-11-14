@@ -50,7 +50,7 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Jl,   _noParams = 1, _noPops = 1, _cAction = jumpIf (<)                                           }
                , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
                , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
-               , Complex { _op = Ld,   _noParams = 1, _noPops = 0, _cAction = load                                                 }
+               , Complex { _op = Lda,  _noParams = 1, _noPops = 0, _cAction = load                                                 }
                , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = input                                                }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                , Complex { _op = Clr,  _noParams = 1, _noPops = 0, _cAction = clear                                                }

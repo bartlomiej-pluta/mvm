@@ -37,7 +37,7 @@ data Op = Nop  -- 0x00
         | Jl   -- 0x12
         | Jge  -- 0x13
         | Jle  -- 0x14
-        | Ld   -- 0x15
+        | Lda  -- 0x15
         | In   -- 0x16
         | Out  -- 0x17
         | Clr  -- 0x18
