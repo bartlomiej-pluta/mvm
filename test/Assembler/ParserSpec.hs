@@ -58,26 +58,30 @@ spec = do
       parseAmpersand [] `shouldBe` Nothing      
   
   describe "parseLabelDef" $ do
-    it "parses 'label:'" $
-      parseLabelDef [T.Identifier "label", T.Colon] `shouldBe` success (LabelDef "label") 2
+    it "parses global label def" $
+      parseLabelDef [T.Identifier "label", T.Colon] `shouldBe` success (LabelDef Global "label") 2
+    it "parses local label def" $
+      parseLabelDef [T.Dot, T.Identifier "label", T.Colon] `shouldBe` success (LabelDef Local "label") 3
     it "requires label" $
       parseLabelDef [T.Colon] `shouldBe` Nothing
     it "requires colon" $
       parseLabelDef [T.Identifier "label"] `shouldBe` Nothing   
     it "supports non-truncated input" $ do
-      parseLabelDef [T.Identifier "sum", T.Colon, T.Operator Nop] `shouldBe` success (LabelDef "sum") 2         
+      parseLabelDef [T.Identifier "sum", T.Colon, T.Operator Nop] `shouldBe` success (LabelDef Global "sum") 2         
     it "supports empty input" $
       parseLabelDef [] `shouldBe` Nothing
 
   describe "parseLabelRef" $ do
-    it "parses '&label'" $
-      parseLabelRef [T.Ampersand, T.Identifier "label"] `shouldBe` success (LabelRef "label") 2
+    it "parses global label ref" $
+      parseLabelRef [T.Ampersand, T.Identifier "label"] `shouldBe` success (LabelRef Global "label") 2
+    it "parses local label" $
+      parseLabelRef [T.Ampersand, T.Dot, T.Identifier "label"] `shouldBe` success (LabelRef Local "label") 3
     it "requires label" $
       parseLabelRef [T.Ampersand] `shouldBe` Nothing
     it "requires ampersand" $
       parseLabelRef [T.Identifier "label"] `shouldBe` Nothing   
     it "supports non-truncated input" $ do
-      parseLabelRef [T.Ampersand, T.Identifier "sum", T.Operator Nop] `shouldBe` success (LabelRef "sum") 2         
+      parseLabelRef [T.Ampersand, T.Identifier "sum", T.Operator Nop] `shouldBe` success (LabelRef Global "sum") 2         
     it "supports empty input" $
       parseLabelRef [] `shouldBe` Nothing      
 
@@ -88,7 +92,7 @@ spec = do
       let expected = map (flip success 1 . Param . Integer) ints
       map parseParam input `shouldBe` expected
     it "parses label references" $ do
-      let expected = success (Param (LabelRef "program")) 2
+      let expected = success (Param (LabelRef Global "program")) 2
       parseParam [T.Ampersand, T.Identifier "program"] `shouldBe` expected
     it "supports non-truncated input" $ do
       let expected = success (Param (Integer 1)) 1
@@ -118,7 +122,7 @@ spec = do
       let expected = success (Instruction
                                (Operator Call)
                                (Params [
-                                (Param (LabelRef "program"))
+                                (Param (LabelRef Global "program"))
                                ])
                              ) (length input)
       parseInstr input `shouldBe` expected    
@@ -141,18 +145,18 @@ spec = do
       parseInstr input `shouldBe` expected       
     it "parses operator with multiple param ref params" $ do
       let input = [T.Operator Push
-                  , T.Ampersand, T.Identifier "program"
-                  , T.Ampersand, T.Identifier "main"
+                  , T.Ampersand, T.Dot, T.Identifier "program"
+                  , T.Ampersand, T.Dot, T.Identifier "main"
                   , T.Ampersand, T.Identifier "foo"
-                  , T.Ampersand, T.Identifier "bar"
+                  , T.Ampersand, T.Dot, T.Identifier "bar"
                   ]                
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (LabelRef "program")),
-                                (Param (LabelRef "main")),
-                                (Param (LabelRef "foo")),
-                                (Param (LabelRef "bar"))
+                                (Param (LabelRef Local "program")),
+                                (Param (LabelRef Local "main")),
+                                (Param (LabelRef Global "foo")),
+                                (Param (LabelRef Local "bar"))
                                ])
                              ) (length input)
       parseInstr input `shouldBe` expected       
@@ -160,23 +164,23 @@ spec = do
       let input = [T.Operator Push
                   , T.Ampersand, T.Identifier "program"
                   , T.IntLiteral 4
-                  , T.Ampersand, T.Identifier "main"
+                  , T.Ampersand, T.Dot, T.Identifier "main"
                   , T.Ampersand, T.Identifier "foo"
                   , T.IntLiteral 10
                   , T.IntLiteral 11
-                  , T.Ampersand, T.Identifier "bar"
+                  , T.Ampersand, T.Dot, T.Identifier "bar"
                   , T.IntLiteral 20
                   ]                
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (LabelRef "program")),
+                                (Param (LabelRef Global "program")),
                                 (Param (Integer 4)),
-                                (Param (LabelRef "main")),
-                                (Param (LabelRef "foo")),
+                                (Param (LabelRef Local "main")),
+                                (Param (LabelRef Global "foo")),
                                 (Param (Integer 10)),
                                 (Param (Integer 11)),
-                                (Param (LabelRef "bar")),
+                                (Param (LabelRef Local "bar")),
                                 (Param (Integer 20))
                                ])
                              ) (length input)
@@ -186,7 +190,7 @@ spec = do
                   , T.Ampersand, T.Identifier "program"
                   , T.IntLiteral 4
                   , T.Ampersand, T.Identifier "main"
-                  , T.Ampersand, T.Identifier "foo"
+                  , T.Ampersand, T.Dot, T.Identifier "foo"
                   , T.IntLiteral 10
                   , T.IntLiteral 11
                   , T.Ampersand, T.Identifier "bar"
@@ -197,29 +201,29 @@ spec = do
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (LabelRef "program")),
+                                (Param (LabelRef Global "program")),
                                 (Param (Integer 4)),
-                                (Param (LabelRef "main")),
-                                (Param (LabelRef "foo")),
+                                (Param (LabelRef Global "main")),
+                                (Param (LabelRef Local "foo")),
                                 (Param (Integer 10)),
                                 (Param (Integer 11)),
-                                (Param (LabelRef "bar")),
+                                (Param (LabelRef Global "bar")),
                                 (Param (Integer 20))
                                ])
-                             ) 13
+                             ) 14
       parseInstr input `shouldBe` expected 
     it "supports empty input" $
       parseInstr [] `shouldBe` Nothing       
 
   describe "parseLine" $ do              
     it "supports label definition and operator in the same line" $ do
-      let input = [T.Identifier "main", T.Colon, T.Operator Call, T.Ampersand, T.Identifier "program"]
+      let input = [T.Dot, T.Identifier "main", T.Colon, T.Operator Call, T.Ampersand, T.Identifier "program"]
       let expected = success (Line
-                               (LabelDef "main")
+                               (LabelDef Local "main")
                                (Instruction
                                 (Operator Call)
                                 (Params [
-                                  (Param (LabelRef "program"))
+                                  (Param (LabelRef Global "program"))
                                 ])
                                )
                              ) (length input)
@@ -227,18 +231,18 @@ spec = do
     it "supports line with just label definition" $ do
       let input = [T.Identifier "main", T.Colon]
       let expected = success (Line
-                               (LabelDef "main")     
+                               (LabelDef Global "main")     
                                Empty                          
                              ) (length input)
       parseLine input `shouldBe` expected      
     it "supports line with just operator" $ do
-      let input = [T.Operator Call, T.Ampersand, T.Identifier "program"]
+      let input = [T.Operator Call, T.Ampersand, T.Dot, T.Identifier "program"]
       let expected = success (Line
                                Empty
                                (Instruction
                                 (Operator Call)
                                 (Params [
-                                  (Param (LabelRef "program"))
+                                  (Param (LabelRef Local "program"))
                                 ])
                                )
                              ) (length input)
@@ -246,11 +250,11 @@ spec = do
     it "supports non-truncated input" $ do
       let input = [T.Identifier "main", T.Colon, T.Operator Call, T.Ampersand, T.Identifier "program", T.Identifier "exit"]
       let expected = success (Line
-                               (LabelDef "main")
+                               (LabelDef Global "main")
                                (Instruction
                                 (Operator Call)
                                 (Params [
-                                  (Param (LabelRef "program"))
+                                  (Param (LabelRef Global "program"))
                                 ])
                                )
                              ) 5
@@ -381,7 +385,7 @@ spec = do
                               , success (Integer 4) 1
                               , Nothing
                               , Nothing 
-                              , success (LabelDef "not me") 2
+                              , success (LabelDef Local "not me") 2
                               , Nothing
                               , success (Instruction (Operator Push) Empty) 1
                               , Nothing
@@ -402,7 +406,7 @@ spec = do
       parseAny [] input `shouldBe` Nothing
     it "supports empty input irrespective of wrapped parsers" $ do
       let parsers = map const [ success (Integer 4) 1
-                              , success (LabelDef "not me") 2
+                              , success (LabelDef Local "not me") 2
                               , success (Instruction (Operator Push) Empty) 1
                               , Nothing
                               , success Ampersand 1
@@ -450,7 +454,7 @@ spec = do
       parseSeq pattern combiner input `shouldBe` Nothing    
     it "supports empty input irrespective of wrapped parsers" $ do
       let pattern = map const [ success (Integer 4) 1
-                              , success (LabelDef "not me") 2
+                              , success (LabelDef Global "not me") 2
                               , success (Instruction (Operator Push) Empty) 1
                               , success Ampersand 1
                               , success Colon 1
@@ -481,10 +485,10 @@ spec = do
     it "parses line by line" $ do
       let input = "add1_2: push 1\npush 2\nadd"
       let (Right tokens) = T.tokenize input
-      --                       Labels:                   Operations:                  Params:
-      let expected = Program [ (Line (LabelDef "add1_2") (Instruction (Operator Push) (Params [Param $ Integer 1])))
-                             , (Line Empty               (Instruction (Operator Push) (Params [Param $ Integer 2])))
-                             , (Line Empty               (Instruction (Operator Add)  Empty))
+      --                       Labels:                          Operations:                  Params:
+      let expected = Program [ (Line (LabelDef Global "add1_2") (Instruction (Operator Push) (Params [Param $ Integer 1])))
+                             , (Line Empty                      (Instruction (Operator Push) (Params [Param $ Integer 2])))
+                             , (Line Empty                      (Instruction (Operator Add)  Empty))
                              ]
       parse tokens `shouldBe` (Right $ expected :: Either String AST)
     it "rejects multiple instructions in single line" $ do
@@ -528,13 +532,13 @@ spec = do
                 \ sum: add\n\
                 \      ret"
       let (Right tokens) = T.tokenize input
-      --                       Labels:                         Operations:                  Params:
-      let expected = Program [ (Line (LabelDef "main") Empty)
-                             , (Line Empty                    (Instruction (Operator Push)  (Params [Param $ Integer 7])))
-                             , (Line Empty                    (Instruction (Operator Push)  (Params [Param $ Integer 4])))
-                             , (Line Empty                    (Instruction (Operator Call)  (Params [Param $ LabelRef "sum"])))
-                             , (Line Empty                    (Instruction (Operator Halt)  Empty))
-                             , (Line (LabelDef "sum")         (Instruction (Operator Add)   Empty))
-                             , (Line Empty                    (Instruction (Operator Ret)   Empty))
+      --                       Labels:                               Operations:                  Params:
+      let expected = Program [ (Line (LabelDef Global "main") Empty)
+                             , (Line Empty                           (Instruction (Operator Push)  (Params [Param $ Integer 7])))
+                             , (Line Empty                           (Instruction (Operator Push)  (Params [Param $ Integer 4])))
+                             , (Line Empty                           (Instruction (Operator Call)  (Params [Param $ LabelRef Global "sum"])))
+                             , (Line Empty                           (Instruction (Operator Halt)  Empty))
+                             , (Line (LabelDef Global "sum")         (Instruction (Operator Add)   Empty))
+                             , (Line Empty                           (Instruction (Operator Ret)   Empty))
                              ]
       parse tokens `shouldBe` (Right $ expected :: Either String AST)

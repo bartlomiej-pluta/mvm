@@ -7,6 +7,7 @@ import qualified Assembler.Tokenizer as T (Token(..))
 import VirtualMachine.VM (Op)
 import Util (explode)
 
+data Scope = Local | Global deriving (Eq, Show, Enum, Bounded)
 
 data AST = Empty
          | Operator Op 
@@ -14,8 +15,9 @@ data AST = Empty
          | Identifier String
          | Colon
          | Ampersand
-         | LabelDef String
-         | LabelRef String
+         | Dot
+         | LabelDef Scope String
+         | LabelRef Scope String
          | Param AST
          | Params [AST]
          | Instruction AST AST
@@ -53,15 +55,24 @@ parseAmpersand :: Parser
 parseAmpersand ((T.Ampersand):_) = Just $ ParseResult Ampersand 1
 parseAmpersand _                 = Nothing
 
--- label_def := ID ':'
+-- '.'
+parseDot :: Parser
+parseDot ((T.Dot):_) = Just $ ParseResult Dot 1
+parseDot _           = Nothing
+
+-- label_def := '.'? ID ':'
 parseLabelDef :: Parser
-parseLabelDef = parseSeq [parseIdentifier, parseColon] combine
-  where combine = (\[(Identifier iden), _] -> LabelDef iden)
+parseLabelDef = parseSeq [parseOptionally parseDot, parseIdentifier, parseColon] combine  
+  where
+    combine [Dot, (Identifier iden), _] = LabelDef Local iden
+    combine [_,   (Identifier iden), _] = LabelDef Global iden
 
 -- label_ref := '&' ID
 parseLabelRef :: Parser
-parseLabelRef = parseSeq [parseAmpersand, parseIdentifier] combine
-  where combine = (\[_, (Identifier iden)] -> LabelRef iden)
+parseLabelRef = parseSeq [parseAmpersand, parseOptionally parseDot, parseIdentifier] combine
+  where
+    combine [_, Dot, (Identifier iden)] = LabelRef Local iden
+    combine [_, _,   (Identifier iden)] = LabelRef Global iden
 
 -- param := INT | label_ref
 parseParam :: Parser

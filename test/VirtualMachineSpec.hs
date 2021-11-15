@@ -1055,13 +1055,13 @@ spec = do
                   \       clr 2     \n\
                   \       halt      \n\
                   \                 \n\
-                  \ sum:  lda 0      \n\
-                  \       lda 1      \n\
+                  \ sum:  lda 0     \n\
+                  \       lda 1     \n\
                   \       add       \n\
                   \       ret       \n\
                   \                 \n\
-                  \ prd:  lda 0      \n\
-                  \       lda 1      \n\
+                  \ prd:  lda 0     \n\
+                  \       lda 1     \n\
                   \       mul       \n\
                   \       ret       "
       let expected = done [2*3+5] 14 (-01)
@@ -1069,97 +1069,97 @@ spec = do
       actual `shouldBe` expected 
 
     it "example #2" $ do
-      let input = " main: push 100  \n\
-                  \ loop: push 1    \n\
-                  \       sub       \n\
-                  \       jne &loop \n\
-                  \       halt      "
+      let input = " main:  push 100   \n\
+                  \ .loop: push 1     \n\
+                  \        sub        \n\
+                  \        jne &.loop \n\
+                  \        halt       "
       let expected = done [0] 7 (-1)
       actual <- run input
       actual `shouldBe` expected 
 
     it "example #3: power - loop variant" $ do
-      let input = "       push 3    \n\
-                  \       push 6   \n\
-                  \       call &pow \n\
-                  \       clr 2     \n\
-                  \       halt      \n\
-                  \ pow:  lda 1     \n\  
-                  \       lda 0     \n\ 
-                  \       push 1    \n\                  
-                  \ loop: ldl 1     \n\ 
-                  \       je &done  \n\ 
-                  \       pop       \n\                   
-                  \       ldl 2     \n\ 
-                  \       ldl 0     \n\ 
-                  \       mul       \n\ 
-                  \       stl 2     \n\ 
-                  \       ldl 1     \n\ 
-                  \       push 1    \n\ 
-                  \       sub       \n\ 
-                  \       stl 1     \n\ 
-                  \       jmp &loop \n\ 
-                  \ done: ldl 2     \n\ 
-                  \       ret       "
+      let input = " push 3            \n\
+                  \ push 6            \n\
+                  \ call &pow         \n\
+                  \ clr 2             \n\
+                  \ halt              \n\
+                  \ pow:   lda 1      \n\  
+                  \        lda 0      \n\ 
+                  \        push 1     \n\                  
+                  \ .loop: ldl 1      \n\ 
+                  \        je &.done  \n\ 
+                  \        pop        \n\                   
+                  \        ldl 2      \n\ 
+                  \        ldl 0      \n\ 
+                  \        mul        \n\ 
+                  \        stl 2      \n\ 
+                  \        ldl 1      \n\ 
+                  \        push 1     \n\ 
+                  \        sub        \n\ 
+                  \        stl 1      \n\ 
+                  \        jmp &.loop \n\ 
+                  \ .done: ldl 2      \n\ 
+                  \        ret        "
       let expected = done [3 ^ (6 :: Int)] 8 (-1)
       actual <- run input
       actual `shouldBe` expected 
 
     it "example #4: power - recursive variant" $ do
-      let input = " push 4          \n\             
-                  \ push 7          \n\     
-                  \ call &pow       \n\
-                  \ clr 2           \n\
-                  \ halt            \n\
-                  \ pow:  lda 1     \n\
-                  \       lda 0     \n\
-                  \       ldl 1     \n\
-                  \       je &edge  \n\
-                  \       pop       \n\
-                  \       ldl 0     \n\
-                  \       ldl 1     \n\
-                  \       push 1    \n\
-                  \       sub       \n\
-                  \       call &pow \n\
-                  \       clr 1     \n\    
-                  \       mul       \n\    
-                  \       ret       \n\     
-                  \ edge: pop       \n\
-                  \       push 1    \n\  
-                  \       ret       "
+      let input = " push 4           \n\             
+                  \ push 7           \n\     
+                  \ call &pow        \n\
+                  \ clr 2            \n\
+                  \ halt             \n\
+                  \ pow:   lda 1     \n\
+                  \        lda 0     \n\
+                  \        ldl 1     \n\
+                  \        je &.edge \n\
+                  \        pop       \n\
+                  \        ldl 0     \n\
+                  \        ldl 1     \n\
+                  \        push 1    \n\
+                  \        sub       \n\
+                  \        call &pow \n\
+                  \        clr 1     \n\    
+                  \        mul       \n\    
+                  \        ret       \n\     
+                  \ .edge: pop       \n\
+                  \        push 1    \n\  
+                  \        ret       "
       let expected = done [4 ^ (7 :: Int)] 8 (-1)
       actual <- run input
       actual `shouldBe` expected 
 
     it "example #5: 11-th element of Fibonacci sequence - recursive variant" $ do
-      let input = " push 11           \n\
-                  \ call &fibb        \n\
-                  \ clr 1             \n\
-                  \ halt              \n\
-                  \ fibb:  lda 0      \n\
-                  \        ldl 0      \n\
-                  \        je &done0  \n\
-                  \        pop        \n\
-                  \        ldl 0      \n\
-                  \        push 1     \n\
-                  \        sub        \n\
-                  \        je &done1  \n\
-                  \        dup        \n\
-                  \        push 1     \n\
-                  \        sub        \n\
-                  \        call &fibb \n\
-                  \        clr 1      \n\
-                  \        over       \n\
-                  \        call &fibb \n\
-                  \        clr 1      \n\
-                  \        add        \n\
-                  \        ret        \n\
-                  \ done1: pop        \n\
-                  \        push 1     \n\
-                  \        ret        \n\
-                  \ done0: pop        \n\
-                  \        push 1     \n\
-                  \        ret        "
+      let input = " push 11             \n\
+                  \ call &fibb          \n\
+                  \ clr 1               \n\
+                  \ halt                \n\
+                  \ fibb:   lda 0       \n\
+                  \         ldl 0       \n\
+                  \         je &.done0  \n\
+                  \         pop         \n\
+                  \         ldl 0       \n\
+                  \         push 1      \n\
+                  \         sub         \n\
+                  \         je &.done1  \n\
+                  \         dup         \n\
+                  \         push 1      \n\
+                  \         sub         \n\
+                  \         call &fibb  \n\
+                  \         clr 1       \n\
+                  \         over        \n\
+                  \         call &fibb  \n\
+                  \         clr 1       \n\
+                  \         add         \n\
+                  \         ret         \n\
+                  \ .done1: pop         \n\
+                  \         push 1      \n\
+                  \         ret         \n\
+                  \ .done0: pop         \n\
+                  \         push 1      \n\
+                  \         ret         "
       let expected = done [fibb 11] 6 (-1)
       actual <- run input
       actual `shouldBe` expected       

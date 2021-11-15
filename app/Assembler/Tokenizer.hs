@@ -14,6 +14,7 @@ data Token = Operator Op
            | Identifier String
            | Colon
            | Ampersand
+           | Dot
            | NewLine
            | WhiteSpace
            | Comment String
@@ -138,6 +139,7 @@ tokenize input = tokens >>= (\t -> Right $ filter tokenFilter t)
       , tokenizeIdentifier
       , keywordTokenizer False ":" Colon
       , keywordTokenizer False "&" Ampersand
+      , keywordTokenizer False "." Dot
       , tokenizeChar
       , tokenizeString
       ]

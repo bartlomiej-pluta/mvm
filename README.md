@@ -124,28 +124,28 @@ call &pow
 clr 2
 halt
 
-pow:  lda 1     ; base
-      lda 0     ; exp
-      push 1    ; acc
+pow:   lda 1      ; base
+       lda 0      ; exp
+       push 1     ; acc
 
-                ;               | Stack:
-loop: ldl 1     ; if exp == 0   | exp
-      je &done  ; then return   | exp
-      pop       ;               |
-                ;               | 
-      ldl 2     ; Evaluate      | acc
-      ldl 0     ; next power    | acc      base
-      mul       ;               | acc*base
-      stl 2     ;               | 
-                ;               |
-      ldl 1     ; Decrement exp | exp
-      push 1    ;               | exp      1
-      sub       ;               | exp-1
-      stl 1     ;               |
-      jmp &loop ;               |
-      
-done: ldl 2     ;               | ...      acc
-      ret       ;               | acc
+                  ;               | Stack:
+.loop: ldl 1      ; if exp == 0   | exp
+       je &.done  ; then return   | exp
+       pop        ;               |
+                  ;               | 
+       ldl 2      ; Evaluate      | acc
+       ldl 0      ; next power    | acc      base
+       mul        ;               | acc*base
+       stl 2      ;               | 
+                  ;               |
+       ldl 1      ; Decrement exp | exp
+       push 1     ;               | exp      1
+       sub        ;               | exp-1
+       stl 1      ;               |
+       jmp &.loop ;               |
+
+.done: ldl 2      ;               | ...      acc
+       ret        ;               | acc
 ```
 The result of execution:
 ```
@@ -161,26 +161,26 @@ call &pow
 clr 2
 halt
 
-pow:  lda 1     ; base
-      lda 0     ; exp
+pow:   lda 1     ; base
+       lda 0     ; exp
 
-      ldl 1     ; push exp to top
-      je &edge  ; the edge case: if exp == 0  then return 1
-      pop       ; pop exp
+       ldl 1     ; push exp to top
+       je &.edge ; the edge case: if exp == 0  then return 1
+       pop       ; pop exp
 
-                ; | Stack:
-      ldl 0     ; | base
-      ldl 1     ; | base               exp
-      push 1    ; | base               exp           1
-      sub       ; | base               exp-1
-      call &pow ; | base               exp-1         base^(exp-1)]
-      clr 1     ; | base               base^(exp-1)
-      mul       ; | base*base^(exp-1)
-      ret       ; | base*base^(exp-1)
-      
-edge: pop    
-      push 1    ; return 1
-      ret       
+                 ; | Stack:
+       ldl 0     ; | base
+       ldl 1     ; | base               exp
+       push 1    ; | base               exp           1
+       sub       ; | base               exp-1
+       call &pow ; | base               exp-1         base^(exp-1)]
+       clr 1     ; | base               base^(exp-1)
+       mul       ; | base*base^(exp-1)
+       ret       ; | base*base^(exp-1)
+       
+.edge: pop    
+       push 1    ; return 1
+       ret       
 ```
 The result of execution:
 ```
@@ -195,32 +195,32 @@ call &fibb
 clr 1
 halt
 
-fibb:  lda 0      ; n                  | Stack:
-       ldl 0      ; n == 0 -> return 1 | n
-       je &done0  ;                    | n
-       pop        ;                    | 
-       ldl 0      ; n == 1 -> return 1 | n
-       push 1     ;                    | n   1
-       sub        ;                    | n-1
-       je &done1  ;                    | n-1
-       dup        ; Evaluate fibb      | n-1 n-1
-       push 1     ;                    | n-1 n-1           1
-       sub        ;                    | n-1 n-2
-       call &fibb ;                    | n-1 n-2           f(n-2)
-       clr 1      ;                    | n-1 f(n-2)
-       over       ;                    | n-1 f(n-2)        n-1
-       call &fibb ;                    | n-1 f(n-2)        n-1     f(n-1)
-       clr 1      ;                    | n-1 f(n-2)        f(n-1)
-       add        ;                    | n-1 f(n-2)+f(n-1)
-       ret
+fibb:   lda 0       ; n                  | Stack:
+        ldl 0       ; n == 0 -> return 1 | n
+        je &.done0  ;                    | n
+        pop         ;                    | 
+        ldl 0       ; n == 1 -> return 1 | n
+        push 1      ;                    | n   1
+        sub         ;                    | n-1
+        je &.done1  ;                    | n-1
+        dup         ; Evaluate fibb      | n-1 n-1
+        push 1      ;                    | n-1 n-1           1
+        sub         ;                    | n-1 n-2
+        call &fibb  ;                    | n-1 n-2           f(n-2)
+        clr 1       ;                    | n-1 f(n-2)
+        over        ;                    | n-1 f(n-2)        n-1
+        call &fibb  ;                    | n-1 f(n-2)        n-1     f(n-1)
+        clr 1       ;                    | n-1 f(n-2)        f(n-1)
+        add         ;                    | n-1 f(n-2)+f(n-1)
+        ret
 
-done1: pop
-       push 1
-       ret
+.done1: pop
+        push 1
+        ret
        
-done0: pop
-       push 1
-       ret
+.done0: pop
+        push 1
+        ret
 ```
 The result of execution:
 ```

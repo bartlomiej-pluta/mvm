@@ -353,7 +353,7 @@ spec = do
     it "treats 'someId1234' as 'someId1234' identifier instead of 'someId' identifier and 1234 int" $
       tokenize "someId1234" `shouldBe` Right [Identifier "someId1234"]
     it "accepts 'main: NL" $
-      tokenize "main: \n" `shouldBe` Right [Identifier "main", Colon, NewLine]
+      tokenize ".main: \n" `shouldBe` Right [Dot, Identifier "main", Colon, NewLine]
     it "accepts 'call &sum NL" $
       tokenize "call &sum \n" `shouldBe` Right [Operator Call, Ampersand, Identifier "sum", NewLine]      
     it "rejects '4push'" $

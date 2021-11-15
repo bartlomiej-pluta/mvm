@@ -2,27 +2,28 @@ module Assembler.Emitter where
 
 import Control.Monad (when)
 import Control.Monad.Trans (lift)
-import Control.Monad.State (State, execState, get, put)
+import Control.Monad.State (State, evalState, get, put)
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Word (Word8)
 
 import qualified Data.Map as M
 
-import Assembler.Parser (AST(..))
+import Assembler.Parser (AST(..), Scope(..))
 
 
 data Bean = Byte Word8 
           | Reference String
           deriving (Show, Eq)
 
-data Context = Context { _beans   :: [Bean]
-                       , _labels  :: M.Map String Int 
+data Context = Context { _beans        :: [Bean]
+                       , _labels       :: M.Map String Int 
+                       , _currentLabel :: Maybe String
                        } deriving (Show, Eq)
 type Emitter = AST -> ExceptT String (State Context) ()
 
 empty :: Context
-empty = Context { _beans = [], _labels = M.fromList [] }
+empty = Context { _beans = [], _labels = M.fromList [], _currentLabel = Nothing }
 
 emitBean :: Bean -> ExceptT String (State Context) ()
 emitBean bean = lift $ do
@@ -35,17 +36,34 @@ emitByte byte = emitBean $ Byte $ byte
 
 emitParam :: Emitter
 emitParam (Param (Integer x))  = emitByte $ fromIntegral $ x
-emitParam (Param (LabelRef l)) = emitBean $ Reference $ l
+emitParam (Param (LabelRef Global l)) = emitBean $ Reference $ l
+emitParam (Param (LabelRef Local l)) = do
+  ctx <- lift get
+  scope <- case _currentLabel ctx of
+    (Just s) -> return s
+    Nothing  -> throwError $ "Local label ('." ++ l ++ "') reference is allowed only in the global label scope"
+  emitBean $ Reference $ (scope ++ "." ++ l)
 emitParam _ = throwError "Number or label reference expected"
 
 emitLabelDef :: Emitter
-emitLabelDef (LabelDef label) = do
+emitLabelDef (LabelDef Global label) = do
   ctx <- lift get
   let labels = _labels ctx
   let current = length (_beans ctx)
   when (label `M.member` labels) (throwError $ "Label '" ++ (label) ++ "' is already defined")
-  put ctx { _labels = M.insert label current labels }
+  put ctx { _labels = M.insert label current labels, _currentLabel = Just label }
   return ()
+emitLabelDef (LabelDef Local label) = do
+  ctx <- lift get
+  let labels = _labels ctx
+  scope <- case _currentLabel ctx of
+    (Just s) -> return s
+    Nothing  -> throwError $ "Local label ('." ++ label ++ "') can be defined only in the global label scope"
+  let canonicalLabel = scope ++ "." ++ label
+  let current = length (_beans ctx)
+  when (canonicalLabel `M.member` labels) (throwError $ "Label '" ++ (label) ++ "' is already defined in the global label '" ++ scope ++ "' scope")
+  put ctx { _labels = M.insert canonicalLabel current labels }
+  return ()  
 emitLabelDef _ = throwError "Label definition expected"
 
 emitInstr :: Emitter
