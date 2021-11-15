@@ -116,7 +116,7 @@ Done:
 VM {_pc = 8, _fp = -1, _stack = fromList [], _halt = True, _debug = False}
 ```
 ### Example 3
-The power ($2^{10}$) computation - loop variant
+The power (`2^10`) computation - loop variant
 ```asm
 push 2
 push 10
@@ -153,7 +153,7 @@ Done:
 VM {_pc = 8, _fp = -1, _stack = fromList [1024], _halt = True, _debug = False}
 ```
 ### Example 4
-The power ($2^{10}$) computation - recursive variant
+The power (`2^10`) computation - recursive variant
 ```asm
 push 2          ; base
 push 10         ; exp
@@ -186,4 +186,44 @@ The result of execution:
 ```
 Done:
 VM {_pc = 8, _fp = -1, _stack = fromList [1024], _halt = True, _debug = False}
+```
+### Example 5
+The `N`-th element of Fibbonaci sequence - recursive variant
+```asm
+push 6
+call &fibb
+clr 1
+halt
+
+fibb:  lda 0      ; n                  | Stack:
+       ldl 0      ; n == 0 -> return 1 | n
+       je &done0  ;                    | n
+       pop        ;                    | 
+       ldl 0      ; n == 1 -> return 1 | n
+       push 1     ;                    | n   1
+       sub        ;                    | n-1
+       je &done1  ;                    | n-1
+       dup        ; Evaluate fibb      | n-1 n-1
+       push 1     ;                    | n-1 n-1           1
+       sub        ;                    | n-1 n-2
+       call &fibb ;                    | n-1 n-2           f(n-2)
+       clr 1      ;                    | n-1 f(n-2)
+       over       ;                    | n-1 f(n-2)        n-1
+       call &fibb ;                    | n-1 f(n-2)        n-1     f(n-1)
+       clr 1      ;                    | n-1 f(n-2)        f(n-1)
+       add        ;                    | n-1 f(n-2)+f(n-1)
+       ret
+
+done1: pop
+       push 1
+       ret
+       
+done0: pop
+       push 1
+       ret
+```
+The result of execution:
+```
+Done:
+VM {_pc = 6, _fp = -1, _stack = fromList [13], _halt = True, _debug = False}
 ```

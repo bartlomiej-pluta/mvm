@@ -10,6 +10,11 @@ import Runner (run, exec)
 done :: [Int] -> Int -> Int -> Either String VM
 done stack pc fp = return $ empty { _stack = S.fromList stack, _pc = pc, _fp = fp, _halt = True }
 
+fibb :: Int -> Int
+fibb 0 = 1
+fibb 1 = 1
+fibb n = fibb (n-1) + fibb (n-2)
+
 spec :: Spec
 spec = do
   describe "nop" $ do
@@ -694,7 +699,7 @@ spec = do
                   \    call &f \n\
                   \    halt    \n\
                   \ f: nop     \n\
-                  \    ret     \n"
+                  \    ret     "
       let expected = done [] 3 (-1)
       actual <- run input
       actual `shouldBe` expected 
@@ -704,7 +709,7 @@ spec = do
                   \    halt    \n\
                   \ f: nop     \n\
                   \    push 4  \n\
-                  \    ret     \n"
+                  \    ret     "
       --                   ┌──── this is the top stack value at the time 'ret' instruction being invoked
       let expected = done [4] 3 (-1)
       actual <- run input
@@ -724,7 +729,7 @@ spec = do
                   \    add     \n\
                   \    ret     \n\
                   \ h: push 6  \n\
-                  \    ret     \n"
+                  \    ret     "
       --                    ┌─────   h: _ -> 6      │ = 6
       --                    │        g: _ -> h + 4  │ = 10 = 6 + 4
       --                    │        f: _ -> h * 2  │ = 20 = 10 * 2
@@ -752,8 +757,8 @@ spec = do
       let input = "    push 14 \n\
                   \    call &f \n\
                   \    nop     \n\
-                  \ f: lda 0    \n\
-                  \    halt"
+                  \ f: lda 0   \n\
+                  \    halt    "
       let expected = done [14, 4, -1, 14] 7 1
       actual <- run input
       actual `shouldBe` expected  
@@ -763,10 +768,10 @@ spec = do
                   \    push 4  \n\
                   \    call &f \n\
                   \    nop     \n\
-                  \ f: lda 2    \n\
-                  \    lda 1    \n\
-                  \    lda 0    \n\
-                  \    halt"
+                  \ f: lda 2   \n\
+                  \    lda 1   \n\
+                  \    lda 0   \n\
+                  \    halt    "
       let expected = done [4, 11, 14, 8, -1, 4, 11, 14] 15 3
       actual <- run input
       actual `shouldBe` expected  
@@ -775,8 +780,8 @@ spec = do
                   \      push 11   \n\
                   \      call &sum \n\
                   \      halt      \n\
-                  \ sum: lda 1      \n\
-                  \      lda 0      \n\
+                  \ sum: lda 1     \n\
+                  \      lda 0     \n\
                   \      add       \n\
                   \      ret       "
       let expected = done [25, 11, 14] 6 (-1)
@@ -784,35 +789,35 @@ spec = do
       actual `shouldBe` expected  
     it "raises error if stack is empty" $ do      
       let input = " lda 0  \n\
-                  \ halt  "
+                  \ halt   "
       let expected = Left "Index 0 out of stack bounds"
       let vm = empty { _stack = S.fromList [], _fp = 0 }
       actual <- exec vm input            
       actual `shouldBe` expected  
     it "raises error if stack contains only previous fp" $ do
       let vm = empty { _stack = S.fromList [-1], _fp = 0 }
-      let input = " lda 0    \n\
+      let input = " lda 0  \n\
                   \ halt   "
       let expected = Left "Index 0 out of stack bounds"      
       actual <- exec vm input
       actual `shouldBe` expected    
     it "raises error if stack contains only previous fp and return address" $ do
       let vm = empty { _stack = S.fromList [2, -1], _fp = 0 }
-      let input = " lda 0    \n\
+      let input = " lda 0  \n\
                   \ halt   "
       let expected = Left "Index 0 out of stack bounds"      
       actual <- exec vm input
       actual `shouldBe` expected 
     it "loads the first (0) argument if stack contains only previous fp, return address and single argument" $ do
       let vm = empty { _stack = S.fromList [2, -1, 3], _fp = 1 }
-      let input = " lda 0    \n\
+      let input = " lda 0  \n\
                   \ halt   "
       let expected = done [3, 2, -1, 3] 2 1      
       actual <- exec vm input
       actual `shouldBe` expected 
     it "raises error when accessint second (1) argument if stack contains only previous fp, return address and single argument" $ do
       let vm = empty { _stack = S.fromList [2, -1, 3], _fp = 1 }
-      let input = " lda 1    \n\
+      let input = " lda 1  \n\
                   \ halt   "
       let expected = Left "Index 1 out of stack bounds"      
       actual <- exec vm input
@@ -824,9 +829,9 @@ spec = do
       --                                         │                                                 │
       let vm = empty { _stack = S.fromList [ 2, -1, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ], _fp = 12 }
       --                                         │                                     │
-      -- argument indexes (lda):                  └─ 0   1   2  3  4  5  6  7  8  9  10 11
+      -- argument indexes (lda):                 └─ 0   1   2  3  4  5  6  7  8  9  10 11
       --                                                                               └───── lda 11 results in pushing 0 on to the top of the stack        
-      let input = " lda 11    \n\
+      let input = " lda 11 \n\
                   \ halt   "
       let expected = done [0, 2, -1, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] 2 12    
       actual <- exec vm input
@@ -850,8 +855,8 @@ spec = do
                   \      call &sum \n\
                   \      clr 2     \n\
                   \      halt      \n\
-                  \ sum: lda 1      \n\
-                  \      lda 0      \n\
+                  \ sum: lda 1     \n\
+                  \      lda 0     \n\
                   \      add       \n\
                   \      ret       "
       let expected = done [25] 8 (-1)
@@ -1125,3 +1130,36 @@ spec = do
       let expected = done [4 ^ (7 :: Int)] 8 (-1)
       actual <- run input
       actual `shouldBe` expected 
+
+    it "example #5: 11-th element of Fibonacci sequence - recursive variant" $ do
+      let input = " push 11           \n\
+                  \ call &fibb        \n\
+                  \ clr 1             \n\
+                  \ halt              \n\
+                  \ fibb:  lda 0      \n\
+                  \        ldl 0      \n\
+                  \        je &done0  \n\
+                  \        pop        \n\
+                  \        ldl 0      \n\
+                  \        push 1     \n\
+                  \        sub        \n\
+                  \        je &done1  \n\
+                  \        dup        \n\
+                  \        push 1     \n\
+                  \        sub        \n\
+                  \        call &fibb \n\
+                  \        clr 1      \n\
+                  \        over       \n\
+                  \        call &fibb \n\
+                  \        clr 1      \n\
+                  \        add        \n\
+                  \        ret        \n\
+                  \ done1: pop        \n\
+                  \        push 1     \n\
+                  \        ret        \n\
+                  \ done0: pop        \n\
+                  \        push 1     \n\
+                  \        ret        "
+      let expected = done [fibb 11] 6 (-1)
+      actual <- run input
+      actual `shouldBe` expected       
