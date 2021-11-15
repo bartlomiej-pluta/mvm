@@ -3,6 +3,7 @@ module VirtualMachine.Interpreter where
 import Data.Word (Word8)
 import Data.List (intercalate)
 
+import Control.Monad (when, unless)
 import Control.Monad.Trans.State (get, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, except, runExceptT)
 import Control.Monad.Trans (lift)
@@ -23,9 +24,8 @@ parseInstr (opCode:rest) = do
     Nothing -> Left "Unknown instruction"
   let noParams = _noParams instr
   let params = map fromIntegral $ take noParams rest :: [Word8]
-  if length params == noParams 
-  then return (instr, params)
-  else Left $ "Expected " ++ (show noParams) ++ " parameter(s), got " ++ (show $ length params) ++ " for operator '" ++ (show op) ++ "'"
+  unless (length params == noParams) (Left $ "Expected " ++ (show noParams) ++ " parameter(s), got " ++ (show $ length params) ++ " for operator '" ++ (show op) ++ "'")
+  return (instr, params)
 parseInstr [] = Left "Unexpected end of the file"
 
 parse :: [Word8] -> Either String [Unit]
@@ -51,26 +51,22 @@ interpretUnit [] = throwError "Nothing to interpret"
 interpretUnit units = do
   pc <- lift getPc
   let progSize = length units
-  if pc < progSize
-  then case units !! pc of
+  unless (pc < progSize) (throwError $ "PC (=" ++ (show pc) ++ ") exceeds program size (=" ++ (show progSize) ++ ")")
+  case units !! pc of
     (Instr instr) -> dispatchInstr units instr
     (Byte _)      -> throwError $ "PC (=" ++ (show pc) ++ ") currently points to the data byte rather than instruction" 
-  else throwError $ "PC (=" ++ (show pc) ++ ") exceeds program size (=" ++ (show progSize) ++ ")"
 
 dispatchInstr :: [Unit] -> Instruction -> ExceptT String Machine ()
 dispatchInstr units instr = do
   debug <- lift isDebug
   
-  if debug
-  then lift $ do
+  when debug $ lift $ do
     vm <- get
     pc <- getPc
     let noParams = _noParams instr
     let params = intercalate "" $ map (show . _byte) $ take noParams $ drop (pc + 1) $ units
     liftIO $ putStrLn $ show vm
-    liftIO $ putStrLn $ (show pc) ++ ": " ++ (show $ _op instr) ++ " " ++ params
-    return ()
-  else return ()
+    liftIO $ putStrLn $ (show pc) ++ ": " ++ (show $ _op instr) ++ " " ++ params    
 
   case instr of
     Simple {}  -> interpretSimple units instr
@@ -85,13 +81,11 @@ interpretSimple units instr = do
   let params = map (fromIntegral . _byte) paramBytes   
   let action = _sAction instr
   pops <- lift $ pop noPops  
-  if length pops == noPops
-  then lift $ do
-    let pushes = action params pops
-    pushS pushes
-    forward $ noParams + 1
-    return ()
-  else throwError $ "Attempt to pop from empty stack: tried to pop " ++ (show noPops) ++ " elements, got " ++ (show $ length pops)  
+  unless (length pops == noPops) (throwError $ "Attempt to pop from empty stack: tried to pop " ++ (show noPops) ++ " elements, got " ++ (show $ length pops))  
+  let pushes = action params pops
+  lift $ pushS pushes
+  lift $ forward $ noParams + 1
+  return ()
 
 interpretComplex :: [Unit] -> Instruction -> ExceptT String Machine ()
 interpretComplex units instr = do
@@ -102,9 +96,8 @@ interpretComplex units instr = do
   let params = map (fromIntegral . _byte) paramBytes   
   let action = _cAction instr
   pops <- lift $ pop noPops  
-  if length pops == noPops
-  then do action params pops
-  else throwError $ "Attempt to pop from empty stack: tried to pop " ++ (show noPops) ++ " elements, got " ++ (show $ length pops)  
+  unless (length pops == noPops) (throwError $ "Attempt to pop from empty stack: tried to pop " ++ (show noPops) ++ " elements, got " ++ (show $ length pops))
+  action params pops
 
 run :: VM -> B.ByteString -> IO (Either String VM)
 run vm input = evalStateT (runExceptT machine) vm
