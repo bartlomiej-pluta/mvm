@@ -1,5 +1,6 @@
 module VirtualMachine.VM where
 
+import Text.Printf (printf)
 import Data.Foldable (toList)
 import Control.Monad.Trans (lift)
 import Control.Monad.State (get, put)
@@ -14,7 +15,10 @@ data VM = VM { _pc    :: Int
              , _stack :: S.Seq Int
              , _halt  :: Bool
              , _debug :: Bool
-             } deriving (Show, Eq)
+             } deriving (Eq)
+
+instance Show VM where
+  show vm = printf "%s PC=%03d FP=%03d Stack=%s" (if _halt vm then "\x25A0" else "\x25B6") (_pc vm) (_fp vm) (show $ toList $ _stack vm)
 
 data Op = Nop  -- 0x00 
         | Halt -- 0x01
