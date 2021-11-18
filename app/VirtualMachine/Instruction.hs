@@ -1,46 +1,45 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module VirtualMachine.Instruction where
 
 import Data.Char (chr, ord)
 import Data.Word (Word8)
-import System.IO (stdin, hGetChar)
-import Control.Monad (unless)
+import Control.Monad (void)
 import Control.Monad.Except (throwError)
-import Control.Monad.Trans (lift, liftIO)
-import Control.Monad.Trans.Except (ExceptT)
+import Control.Monad.Trans (liftIO)
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 
-import VirtualMachine.VM (Op(..), Machine, push, pop, forward, getAt, getPc, getFp, getStackSize, setAt, setPc, setFp, setHalt)
+import VirtualMachine.VM (Op(..), Computation, push, pop, forward, getPc, getFp, getStackSize, setPc, setFp, setHalt, frameAt, updateFrameAt)
 
 
 type Params = [Int]
 type Pops = [Int]
 type Pushes = S.Seq Int
 
-data Instruction = Simple  { _op :: Op, _noParams :: Int, _noPops :: Int, _sAction :: Params -> Pops -> Pushes                    } 
-                |  Complex { _op :: Op, _noParams :: Int, _noPops :: Int, _cAction :: Params -> Pops -> ExceptT String Machine () } 
+data Instruction = Simple  { _op :: Op, _noParams :: Int, _noPops :: Int, _sAction :: Params -> Pops -> Pushes         }
+                |  Complex { _op :: Op, _noParams :: Int, _noPops :: Int, _cAction :: Params -> Pops -> Computation () }
 
 instance Show Instruction where
-  show (Simple op noParams noPops _)  = (show op) ++ "(S," ++ (show noParams) ++ "," ++ (show noPops) ++ ")"
-  show (Complex op noParams noPops _) = (show op) ++ "(C," ++ (show noParams) ++ "," ++ (show noPops) ++ ")"
+  show (Simple op noParams noPops _)  = show op ++ "(S," ++ show noParams ++ "," ++ show noPops ++ ")"
+  show (Complex op noParams noPops _) = show op ++ "(C," ++ show noParams ++ "," ++ show noPops ++ ")"
 
 data Unit = Instr { _instr :: Instruction }
           | Byte  { _byte  :: Word8       }
           deriving (Show)
 
 instructions :: [Instruction]
-instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\_ _      -> S.empty)                               }
-               , Simple  { _op = Push, _noParams = 1, _noPops = 0, _sAction = (\params _ -> S.fromList params)                     }
-               , Simple  { _op = Pop,  _noParams = 0, _noPops = 1, _sAction = (\_ _      -> S.empty)                               }
-               , Simple  { _op = Dup,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [x, x])                     }
-               , Simple  { _op = Swap, _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y, x])                     }
-               , Simple  { _op = Add,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y + x])                    }
-               , Simple  { _op = Sub,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y - x])                    }
-               , Simple  { _op = Mul,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y * x])                    }
-               , Simple  { _op = Div,  _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y `div` x])                }
-               , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [-x])                       }
-               , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = (\_ [x]    -> S.fromList [if x /= 0 then 0 else 1])  }
-               , Simple  { _op = Over, _noParams = 0, _noPops = 2, _sAction = (\_ [x, y] -> S.fromList [y, x, y])                  }
+instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = \_ _      -> S.empty                                 }
+               , Simple  { _op = Push, _noParams = 1, _noPops = 0, _sAction = \params _ -> S.fromList params                       }
+               , Simple  { _op = Pop,  _noParams = 0, _noPops = 1, _sAction = \_ _      -> S.empty                                 }
+               , Simple  { _op = Dup,  _noParams = 0, _noPops = 1, _sAction = \_ [x]    -> S.fromList [x, x]                       }
+               , Simple  { _op = Swap, _noParams = 0, _noPops = 2, _sAction = \_ [x, y] -> S.fromList [y, x]                       }
+               , Simple  { _op = Add,  _noParams = 0, _noPops = 2, _sAction = \_ [x, y] -> S.fromList [y + x]                      }
+               , Simple  { _op = Sub,  _noParams = 0, _noPops = 2, _sAction = \_ [x, y] -> S.fromList [y - x]                      }
+               , Simple  { _op = Mul,  _noParams = 0, _noPops = 2, _sAction = \_ [x, y] -> S.fromList [y * x]                      }
+               , Simple  { _op = Div,  _noParams = 0, _noPops = 2, _sAction = \_ [x, y] -> S.fromList [y `div` x]                  }
+               , Simple  { _op = Neg,  _noParams = 0, _noPops = 1, _sAction = \_ [x]    -> S.fromList [-x]                         }
+               , Simple  { _op = Not,  _noParams = 0, _noPops = 1, _sAction = \_ [x]    -> S.fromList [if x /= 0 then 0 else 1]    }
+               , Simple  { _op = Over, _noParams = 0, _noPops = 2, _sAction = \_ [x, y] -> S.fromList [y, x, y]                    }
                , Complex { _op = Halt, _noParams = 0, _noPops = 0, _cAction = halt                                                 }
                , Complex { _op = Call, _noParams = 1, _noPops = 0, _cAction = call                                                 }
                , Complex { _op = Ret,  _noParams = 0, _noPops = 0, _cAction = ret                                                  }
@@ -51,145 +50,68 @@ instructions = [ Simple  { _op = Nop,  _noParams = 0, _noPops = 0, _sAction = (\
                , Complex { _op = Jl,   _noParams = 1, _noPops = 1, _cAction = jumpIf (<)                                           }
                , Complex { _op = Jge,  _noParams = 1, _noPops = 1, _cAction = jumpIf (>=)                                          }
                , Complex { _op = Jle,  _noParams = 1, _noPops = 1, _cAction = jumpIf (<=)                                          }
-               , Complex { _op = Lda,  _noParams = 1, _noPops = 0, _cAction = load                                                 }
+               , Complex { _op = Lda,  _noParams = 1, _noPops = 0, _cAction = loadArg                                              }
                , Complex { _op = In,   _noParams = 0, _noPops = 0, _cAction = input                                                }
                , Complex { _op = Out,  _noParams = 0, _noPops = 1, _cAction = output                                               }
                , Complex { _op = Clr,  _noParams = 1, _noPops = 0, _cAction = clear                                                }
-               , Complex { _op = Roll, _noParams = 0, _noPops = 0, _cAction = roll                                                 }
                , Complex { _op = Ldl,  _noParams = 1, _noPops = 0, _cAction = loadLocal                                            }
                , Complex { _op = Stl,  _noParams = 1, _noPops = 1, _cAction = storeLocal                                           }
                ]
 
 instructionByOp :: M.Map Op Instruction
-instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions    
+instructionByOp = M.fromList $ map (\i -> (_op i, i)) instructions
 
-halt :: Params -> Pops -> ExceptT String Machine ()
-halt _ _ = lift $ do
-  setHalt True
-  return ()
+halt :: Params -> Pops -> Computation ()
+halt _ _ = setHalt True
 
-call :: Params -> Pops -> ExceptT String Machine  ()
-call (addr:_) _ = lift $ do  
+call :: Params -> Pops -> Computation  ()
+call (addr:_) _ = do
   fp  <- getFp
-  fp' <- getStackSize  
-  retAddr <- getPc >>= return . (+2)
-  
+  fp' <- getStackSize
+  retAddr <- (+2) <$> getPc
+
   push [retAddr, fp]
   setPc addr
-  setFp fp'  
-  
-  return ()
-call [] _ = throwError "Address excepted"
-  
-ret :: Params -> Pops -> ExceptT String Machine ()
+  setFp fp'
+
+ret :: Params -> Pops -> Computation ()
 ret _ _ = do
-  fp <- lift getFp
-  stackSize <- lift getStackSize
-
-  fp'     <- getAt (stackSize - fp - 1) "Cannot determine previous frame pointer (fp)"
-  retAddr <- getAt (stackSize - fp - 2) "Cannot determine return address" 
-
-  if stackSize - fp == 2
-  then lift $ do
-    _ <-  pop $ stackSize - fp
-    return ()
-  else lift $ do
-    retVal <- pop 1
-    _ <- pop $ stackSize - fp - 1
-    push retVal
-    return ()
-
-  lift $ setFp fp'
-  lift $ setPc retAddr
-
-  return ()
-
-jump :: Params -> Pops -> ExceptT String Machine ()
-jump (addr:_) _ = lift $ do
-  setPc addr
-  return ()
-jump [] _  = throwError "Address expected"
-
-jumpIf :: (Int -> Int -> Bool) -> Params -> Pops -> ExceptT String Machine ()
-jumpIf p (addr:_) (top:_) = lift $ do
-  pc <- getPc
-  push [top]
-  setPc $ if top `p` 0 then addr else pc + 2
-  return ()
-jumpIf _ [] _  = throwError "Address expected"
-jumpIf _ _  [] = throwError "Empty stack - nothing to compare"  
-
-input :: Params -> Pops -> ExceptT String Machine ()
-input _ _ = lift $ do
-  c <- liftIO $ hGetChar stdin
-  push [ord c]
-  forward 1
-  return()
-
-output :: Params -> Pops -> ExceptT String Machine ()
-output _ (char:_) = lift $ do
-  liftIO $ putStr $ [chr char]
-  forward 1
-  return ()
-output _ [] = throwError $ "Empty stack - nothing to output"
-
-load :: Params -> Pops -> ExceptT String Machine ()
-load (index:_) _ = do
-  fp <- lift getFp
-  stackSize <- lift getStackSize
-  val <- getAt (stackSize - fp + index) ("Index " ++ (show index) ++ " out of stack bounds")
-  lift $ push [val]
-  lift $ forward 2
-  return ()
-load [] _ = throwError "Local parameter index expected"
-
-niy :: Op -> Params -> Pops -> ExceptT String Machine ()
-niy op _ _ = do
-  pc <- lift getPc
-  throwError $ "Instruction '" ++ (show op) ++ "' ("++ (show $ pc) ++") is not implemented yet"
-
-clear :: Params -> Pops -> ExceptT String Machine ()
-clear (count:_) _ = lift $ do
-  top <- pop 1
-  _ <- pop count
-  push top
-  forward 2
-  return ()
-clear [] _ = throwError "Number of elements to be cleaned expected"
-
-roll :: Params -> Pops -> ExceptT String Machine ()
-roll _ _ = lift $ do
   fp <- getFp
   stackSize <- getStackSize
-  let offset = if fp == -1 then 0 else (fp + 2)
-  substack <- pop $ stackSize - offset
-  if null substack
-  then return ()
-  else do
-    let (x:xs) = substack
-    push $ xs ++ [x]
-    return ()
-  forward 1
-  return ()
 
-loadLocal :: Params -> Pops -> ExceptT String Machine ()
-loadLocal (index:_) _ = do
-  fp <- lift getFp
-  unless (fp > -1) (throwError "No active stack frame to load local variable")
-  stackSize <- lift getStackSize
-  val <- getAt (stackSize - fp - 3 - index) $ "No stack value on the active frame under the index: " ++ (show index)  
-  lift $ push [val]
-  lift $ forward 2
-  return ()
-loadLocal [] _ = throwError "Local variable index expected"
+  fp'     <- frameAt 0 id "frame pointer (fp)"
+  retAddr <- frameAt 1 id "return address"
 
-storeLocal :: Params -> Pops -> ExceptT String Machine ()
-storeLocal (index:_) (val:_) = do
-  fp <- lift getFp
-  unless (fp > -1) (throwError "No active stack frame to store local variable")
-  stackSize <- lift getStackSize
-  lift $ setAt (stackSize - fp - 3 - index) val
-  lift $ forward 2
-  return ()
-storeLocal [] _ = throwError "Local variable index expected"
-storeLocal _ [] = throwError "Empty stack - nothing to store"
+  if stackSize - fp == 2
+  then void $ pop (stackSize - fp)
+  else pop 1 >>= \retVal -> pop (stackSize - fp - 1) >> push retVal
+
+  setFp fp'
+  setPc retAddr
+
+jump :: Params -> Pops -> Computation ()
+jump (addr:_) _ = setPc addr
+
+jumpIf :: (Int -> Int -> Bool) -> Params -> Pops -> Computation ()
+jumpIf p (addr:_) (top:_) = push [top] >> getPc >>= (\pc -> return $ if top `p` 0 then addr else pc + 2) >>= setPc
+
+input :: Params -> Pops -> Computation ()
+input _ _ = liftIO getChar >>= \c -> push [ord c] >> forward 1
+
+output :: Params -> Pops -> Computation ()
+output _ (char:_) = liftIO (putStr [chr char]) >> forward 1
+
+loadArg :: Params -> Pops -> Computation ()
+loadArg (index:_) _ = frameAt index (\x -> -x - 1) "call argument" >>= \val -> push [val] >> forward 2
+
+clear :: Params -> Pops -> Computation ()
+clear (count:_) _ = pop 1 >>= \top -> pop count >> push top >> forward 2
+
+loadLocal :: Params -> Pops -> Computation ()
+loadLocal (index:_) _ = frameAt index (+2) "local variable" >>= \val -> push [val] >> forward 2
+
+storeLocal :: Params -> Pops -> Computation ()
+storeLocal (index:_) (val:_) = updateFrameAt (index + 2) val >> forward 2
+
+niy :: Op -> Params -> Pops -> Computation ()
+niy op _ _ = getPc >>= \pc -> throwError $ "Instruction '" ++ show op ++ "' ("++ show pc ++") is not implemented yet"

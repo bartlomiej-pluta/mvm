@@ -1,8 +1,8 @@
 module Main where
 
-import System.Environment
+import System.Environment (getArgs)
 
-import Runner (run, runDebug)
+import Runner (run)
 
 main :: IO ()
 main = do
@@ -11,5 +11,5 @@ main = do
   result <- run input
   case result of
     (Right vm) -> do
-      putStrLn $ "\n\nDone:\n" ++ (show vm)
+      putStrLn $ "\nDone\n" ++ show vm
     (Left err) -> putStrLn $ "\n\nError:\n" ++ err

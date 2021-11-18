@@ -3,11 +3,13 @@ module VirtualMachine.VM where
 import Text.Printf (printf)
 import Data.Foldable (toList)
 import Control.Monad.Trans (lift)
-import Control.Monad.State (get, put)
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.State (StateT)
 import Control.Monad.Trans.Except (ExceptT)
 import qualified Data.Sequence as S
+import qualified Control.Monad.State as ST (get, put)
+import Data.Functor ((<&>))
+import Control.Monad (unless)
 
 
 data VM = VM { _pc    :: Int
@@ -45,13 +47,14 @@ data Op = Nop  -- 0x00
         | In   -- 0x16
         | Out  -- 0x17
         | Clr  -- 0x18
-        | Roll -- 0x19
-        | Over -- 0x1A
-        | Ldl  -- 0x1B
-        | Stl  -- 0x1C
+        | Over -- 0x19
+        | Ldl  -- 0x1A
+        | Stl  -- 0x1B
         deriving (Eq, Ord, Enum, Show, Read, Bounded)
 
 type Machine = StateT VM IO
+
+type Computation = ExceptT String Machine
 
 empty :: VM
 empty = VM { _pc     = 0
@@ -63,69 +66,71 @@ empty = VM { _pc     = 0
 
 -------------------------------------------------------------------------------
 
-getPc :: Machine Int
-getPc = get >>= (return . _pc)
+get :: Computation VM
+get = lift ST.get
 
-getFp :: Machine Int
-getFp = get >>= (return . _fp)
+put :: VM -> Computation ()
+put x = lift $ ST.put x
 
-isHalted :: Machine Bool
-isHalted = get >>= (return . _halt)
+getPc :: Computation Int
+getPc = get <&> _pc
 
-isDebug :: Machine Bool
-isDebug = get >>= (return . _debug)
+getFp :: Computation Int
+getFp = get <&> _fp
 
-getAt :: Int -> String -> ExceptT String Machine Int
-getAt index err = do
-  vm <- lift $ get
-  let stack = _stack vm  
-  case (stack S.!? index) of
+isHalted :: Computation Bool
+isHalted = get <&> _halt
+
+isDebug :: Computation Bool
+isDebug = get <&> _debug
+
+stackAt :: Int -> String -> Computation Int
+stackAt index err = get >>= \vm -> case _stack vm S.!? index of
+  (Just i) -> return i
+  Nothing  -> throwError err
+
+frameAt :: Int -> (Int -> Int) -> String -> Computation Int
+frameAt index t name = do
+  vm <- get
+  fp <- getFp
+  unless (fp > -1) (throwError "No active stack frame")
+  stackSize <- getStackSize
+  case _stack vm S.!? (stackSize - fp - 1 - t index) of
     (Just i) -> return i
-    Nothing  -> throwError err
+    Nothing  -> throwError $ "Cannot determine " ++ name ++ " - index " ++ show index ++ " out of frame bounds"
 
-setAt :: Int -> Int -> Machine ()
-setAt index val = do
+updateFrameAt :: Int -> Int -> Computation ()
+updateFrameAt index value = do
   vm <- get
-  let stack = _stack vm
-  let stack' = S.update index val stack
-  put vm { _stack = stack' }
+  fp <- getFp
+  unless (fp > -1) (throwError "No active stack frame")
+  stackSize <- getStackSize
+  put vm { _stack = S.update (stackSize - fp - 1 - index) value $ _stack vm }
 
-getStackSize :: Machine Int
-getStackSize = get >>= (return . length . _stack)
+getStackSize :: Computation Int
+getStackSize = get <&> (length . _stack)
 
-setPc :: Int -> Machine ()
-setPc pc = do
-  vm <- get
-  put vm { _pc = pc }
+setPc :: Int -> Computation ()
+setPc pc = get >>= \vm -> put vm { _pc = pc }
 
-setFp :: Int -> Machine ()
-setFp fp = do
-  vm <- get
-  put vm { _fp = fp }
+setFp :: Int -> Computation ()
+setFp fp = get >>= \vm -> put vm { _fp = fp }
 
-setHalt :: Bool -> Machine ()
-setHalt halt = do
-  vm <- get
-  put vm { _halt = halt }
+setHalt :: Bool -> Computation ()
+setHalt halt = get >>= \vm -> put vm { _halt = halt }
 
-pop :: Int -> Machine [Int]
+pop :: Int -> Computation [Int]
 pop count = do
   vm <- get
   let stack = _stack vm
-  put vm { _stack = S.drop count $ stack }
-  return $ toList $ S.take count $ stack
+  put vm { _stack = S.drop count stack }
+  return $ toList $ S.take count stack
 
-push :: [Int] -> Machine ()
+push :: [Int] -> Computation ()
 push = pushS . S.fromList
 
-pushS :: S.Seq Int -> Machine ()
-pushS numbers = do
-  vm <- get
-  put vm { _stack = numbers <> _stack vm  }
-  return ()  
+pushS :: S.Seq Int -> Computation ()
+pushS numbers = get >>= \vm -> put vm { _stack = numbers <> _stack vm }
 
-forward :: Int -> Machine ()
-forward offset = do
-  vm <- get
-  put vm { _pc = _pc vm + offset }
-  return () 
+forward :: Int -> Computation ()
+forward offset = get >>= \vm -> put vm { _pc = _pc vm + offset }

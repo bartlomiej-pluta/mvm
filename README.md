@@ -28,10 +28,9 @@ List of available instructions:
 | ``0x16`` | ``IN``     | Read input from stdin                                                          |
 | ``0x17`` | ``OUT``    | Put top stack value to stdout as char                                          |
 | ``0x18`` | ``CLR x``  | Wipe out ``x`` values before the top value from the stack                      |
-| ``0x19`` | ``ROLL``   | Rotate the stack/stack frame                                                   |
-| ``0x1A`` | ``OVER``   | Duplicate and push the second value from the top                               |
-| ``0x1B`` | ``LDL x``  | Lift the ``x`` from the _fp_ variable to the top of the stack                  |
-| ``0x1C`` | ``STL x``  | Store the top stack value under the ``x`` from the _fp_ variable               |
+| ``0x19`` | ``OVER``   | Duplicate and push the second value from the top                               |
+| ``0x1A`` | ``LDL x``  | Lift the ``x`` from the _fp_ variable to the top of the stack                  |
+| ``0x1B`` | ``STL x``  | Store the top stack value under the ``x`` from the _fp_ variable               |
 
 ## Example
 ### Example 1

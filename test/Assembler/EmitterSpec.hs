@@ -13,7 +13,7 @@ import Assembler.Emitter as E
 import VirtualMachine.VM (Op(..))
 
 evalContext :: Context -> AST -> Emitter -> Either String Context
-evalContext ctx ast emitter = flip evalState ctx $ runExceptT $ emitter ast >> lift get 
+evalContext ctx ast emitter = flip evalState ctx $ runExceptT $ emitter ast >> lift get
 
 spec :: Spec
 spec = do
@@ -37,12 +37,12 @@ spec = do
       let ctx = E.empty { _labels = M.fromList [("main", 0)], _currentLabel = Just "main" }
       let input = LabelDef Local "foo"
       let expected = Right (ctx { _labels = M.fromList [("main", 0), ("main.foo", 0)], _currentLabel = Just "main" })
-      evalContext ctx input emitLabelDef `shouldBe` expected        
+      evalContext ctx input emitLabelDef `shouldBe` expected
     it "allows for the same local label in different global label scopes" $ do
       let ctx = E.empty { _labels = M.fromList [("main", 0), ("main.foo", 0), ("program", 0)], _currentLabel = Just "program" }
       let input = LabelDef Local "foo"
       let expected = Right (ctx { _labels = M.fromList [("main", 0), ("main.foo", 0), ("program", 0), ("program.foo", 0)], _currentLabel = Just "program" })
-      evalContext ctx input emitLabelDef `shouldBe` expected      
+      evalContext ctx input emitLabelDef `shouldBe` expected
     it "does not allow to redefine local label" $ do
       let ctx = E.empty { _labels = M.fromList [("main", 0), ("main.foo", 0)], _currentLabel = Just "main" }
       let input = LabelDef Local "foo"
@@ -84,7 +84,7 @@ spec = do
       evalContext ctx input emitInstr `shouldBe` expected
     it "emits bytes for 2-param instruction" $ do
       let ctx = E.empty
-      let input = Instruction (Operator Push) (Params [(Param (Integer 11)), (Param (LabelRef Global "main"))])
+      let input = Instruction (Operator Push) (Params [Param (Integer 11), Param (LabelRef Global "main")])
       let expected = Right (ctx { _beans = [Byte 0x02, Byte 0x0B, Reference "main"] })
       evalContext ctx input emitInstr `shouldBe` expected
 
@@ -106,7 +106,7 @@ spec = do
                   \     push 2    \n\
                   \     jmp &sum  \n\                  
                   \     sum: add  \n\
-                  \     jmp &main "      
+                  \     jmp &main "
       let (Right tokens) = tokenize input
       let (Right ast) = parse tokens
       let expected = [0x02, 0x01, 0x02, 0x02, 0x0e, 0x06, 0x06, 0x0e, 0x00]
@@ -123,7 +123,7 @@ spec = do
                   \        push 2     \n\
                   \        jmp &.sum  \n\                  
                   \ .sum:  add        \n\
-                  \        jmp &.loop "       
+                  \        jmp &.loop "
       let (Right tokens) = tokenize input
       let (Right ast) = parse tokens
       --             The differences:               &.sum             &.loop
@@ -138,7 +138,7 @@ spec = do
                   \ push 2       \n\
                   \ jmp &sum     \n\                  
                   \ sum: add     \n\
-                  \ jmp &program "      
+                  \ jmp &program "
       let (Right tokens) = tokenize input
-      let (Right ast) = parse tokens      
+      let (Right ast) = parse tokens
       emit ast `shouldBe` Left "Label 'program' is not defined"

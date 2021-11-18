@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Assembler.Parser where
 
 import Data.List (intercalate)
@@ -10,7 +11,7 @@ import Util (explode)
 data Scope = Local | Global deriving (Eq, Show, Enum, Bounded)
 
 data AST = Empty
-         | Operator Op 
+         | Operator Op
          | Integer Int
          | Identifier String
          | Colon
@@ -21,8 +22,8 @@ data AST = Empty
          | Param AST
          | Params [AST]
          | Instruction AST AST
-         | Line AST AST      
-         | Program [AST]   
+         | Line AST AST
+         | Program [AST]
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
@@ -43,36 +44,36 @@ parseInt _                      = Nothing
 -- ID := [alnum, '_']+
 parseIdentifier :: Parser
 parseIdentifier ((T.Identifier iden):_) = Just $ ParseResult (Identifier iden) 1
-parseIdentifier _                     = Nothing
+parseIdentifier _                       = Nothing
 
 -- ':'
 parseColon :: Parser
-parseColon ((T.Colon):_) = Just $ ParseResult Colon 1
-parseColon _             = Nothing
+parseColon (T.Colon:_) = Just $ ParseResult Colon 1
+parseColon _           = Nothing
 
 -- '&'
 parseAmpersand :: Parser
-parseAmpersand ((T.Ampersand):_) = Just $ ParseResult Ampersand 1
-parseAmpersand _                 = Nothing
+parseAmpersand (T.Ampersand:_) = Just $ ParseResult Ampersand 1
+parseAmpersand _               = Nothing
 
 -- '.'
 parseDot :: Parser
-parseDot ((T.Dot):_) = Just $ ParseResult Dot 1
-parseDot _           = Nothing
+parseDot (T.Dot:_) = Just $ ParseResult Dot 1
+parseDot _         = Nothing
 
 -- label_def := '.'? ID ':'
 parseLabelDef :: Parser
-parseLabelDef = parseSeq [parseOptionally parseDot, parseIdentifier, parseColon] combine  
+parseLabelDef = parseSeq [parseOptionally parseDot, parseIdentifier, parseColon] combine
   where
-    combine [Dot, (Identifier iden), _] = LabelDef Local iden
-    combine [_,   (Identifier iden), _] = LabelDef Global iden
+    combine [Dot, Identifier iden, _] = LabelDef Local iden
+    combine [_,   Identifier iden, _] = LabelDef Global iden
 
 -- label_ref := '&' ID
 parseLabelRef :: Parser
 parseLabelRef = parseSeq [parseAmpersand, parseOptionally parseDot, parseIdentifier] combine
   where
-    combine [_, Dot, (Identifier iden)] = LabelRef Local iden
-    combine [_, _,   (Identifier iden)] = LabelRef Global iden
+    combine [_, Dot, Identifier iden] = LabelRef Local iden
+    combine [_, _,   Identifier iden] = LabelRef Global iden
 
 -- param := INT | label_ref
 parseParam :: Parser
@@ -107,17 +108,17 @@ parseMany :: Parser -> ([AST] -> AST) -> Parser
 parseMany parser combiner tokens = if null asts
   then Nothing
   else Just $ ParseResult ast consumed
-  where    
+  where
     results = parseGreedy parser tokens
     consumed = sum $ map (\(ParseResult _ c) -> c) results
-    asts = map (\(ParseResult a _) -> a) results    
+    asts = map (\(ParseResult a _) -> a) results
     ast = combiner asts
 
 -- a a a a a a a...
 parseGreedy :: Parser -> [T.Token] -> [ParseResult]
 parseGreedy parser tokens = case parser tokens of
   (Just r@(ParseResult _ consumed)) -> r : parseGreedy parser (drop consumed tokens)
-  Nothing                             -> []
+  Nothing                           -> []
 
 -- a | b | c
 parseAlt :: [Parser] -> (AST -> AST) -> Parser
@@ -137,7 +138,7 @@ parseSeq parsers combiner tokens = do
   results <- parseAll parsers tokens
   let consumed = sum $ map (\(ParseResult _ c) -> c) results
   let asts = map (\(ParseResult a _) -> a) results
-  if (length asts) == (length parsers)
+  if length asts == length parsers
   then return $ ParseResult (combiner asts) consumed
   else Nothing
 
@@ -147,7 +148,7 @@ parseAll [] _ = Just []
 parseAll (p:ps) tokens = do
   (ParseResult ast consumed) <- p tokens
   rest <- parseAll ps (drop consumed tokens)
-  return $ (ParseResult ast consumed) : rest
+  return $ ParseResult ast consumed : rest
 
 -- 'Nothing' if not consumed tokens exist
 assertConsumed :: Parser -> Parser
@@ -162,8 +163,8 @@ parse :: [T.Token] -> Either String AST
 parse tokens = do
   let codeLines = explode (==T.NewLine) tokens
   let results = map (assertConsumed parseLine) codeLines
-  let errors = filter ((==Nothing) . snd) $ zipWith (,) codeLines $ results 
-  let errorMsg = "Parse error(s):\n" ++ (intercalate "\n" $ map (show . fst) errors)
+  let errors = filter ((==Nothing) . snd) $ zip codeLines results
+  let errorMsg = "Parse error(s):\n" ++ intercalate "\n" (map (show . fst) errors)
   case sequenceA results of
     (Just r) -> return $ Program $ map (\(ParseResult ast _) -> ast) r
     Nothing  -> Left errorMsg

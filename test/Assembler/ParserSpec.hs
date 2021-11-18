@@ -17,8 +17,7 @@ spec = do
       let input = map ((:[]) . T.Operator) ops
       let expected = map (flip success 1 . Operator) ops
       map parseOperator input `shouldBe` expected
-    it "supports non-truncated input" $ do
-      parseOperator [T.Operator Call, T.Ampersand, T.Identifier "label"] `shouldBe` success (Operator Call) 1      
+    it "supports non-truncated input" $ parseOperator [T.Operator Call, T.Ampersand, T.Identifier "label"] `shouldBe` success (Operator Call) 1
     it "supports empty input" $
       parseOperator [] `shouldBe` Nothing
 
@@ -28,35 +27,31 @@ spec = do
       let input = map ((:[]) . T.IntLiteral) ints
       let expected = map (flip success 1 . Integer) ints
       map parseInt input `shouldBe` expected
-    it "supports non-truncated input" $ do
-      parseInt [T.IntLiteral 4, T.Colon] `shouldBe` success (Integer 4) 1
+    it "supports non-truncated input" $ parseInt [T.IntLiteral 4, T.Colon] `shouldBe` success (Integer 4) 1
     it "supports empty input" $
       parseInt [] `shouldBe` Nothing
 
   describe "parseIdentifier" $ do
     it "accepts identifier tokens" $
       parseIdentifier [T.Identifier "someId"] `shouldBe` success (Identifier "someId") 1
-    it "supports non-truncated input" $ do
-      parseIdentifier [T.Identifier "label", T.Colon] `shouldBe` success (Identifier "label") 1      
+    it "supports non-truncated input" $ parseIdentifier [T.Identifier "label", T.Colon] `shouldBe` success (Identifier "label") 1
     it "supports empty input" $
       parseIdentifier [] `shouldBe` Nothing
 
   describe "parseColon" $ do
     it "accepts colon tokens" $
       parseColon [T.Colon] `shouldBe` success Colon 1
-    it "supports non-truncated input" $ do
-      parseColon [T.Colon, T.Operator Add] `shouldBe` success Colon 1            
+    it "supports non-truncated input" $ parseColon [T.Colon, T.Operator Add] `shouldBe` success Colon 1
     it "supports empty input" $
       parseColon [] `shouldBe` Nothing
 
   describe "parseAmpersand" $ do
     it "accepts colon tokens" $
       parseAmpersand [T.Ampersand] `shouldBe` success Ampersand 1
-    it "supports non-truncated input" $ do
-      parseAmpersand [T.Ampersand, T.Identifier "label"] `shouldBe` success Ampersand 1          
+    it "supports non-truncated input" $ parseAmpersand [T.Ampersand, T.Identifier "label"] `shouldBe` success Ampersand 1
     it "supports empty input" $
-      parseAmpersand [] `shouldBe` Nothing      
-  
+      parseAmpersand [] `shouldBe` Nothing
+
   describe "parseLabelDef" $ do
     it "parses global label def" $
       parseLabelDef [T.Identifier "label", T.Colon] `shouldBe` success (LabelDef Global "label") 2
@@ -65,9 +60,8 @@ spec = do
     it "requires label" $
       parseLabelDef [T.Colon] `shouldBe` Nothing
     it "requires colon" $
-      parseLabelDef [T.Identifier "label"] `shouldBe` Nothing   
-    it "supports non-truncated input" $ do
-      parseLabelDef [T.Identifier "sum", T.Colon, T.Operator Nop] `shouldBe` success (LabelDef Global "sum") 2         
+      parseLabelDef [T.Identifier "label"] `shouldBe` Nothing
+    it "supports non-truncated input" $ parseLabelDef [T.Identifier "sum", T.Colon, T.Operator Nop] `shouldBe` success (LabelDef Global "sum") 2
     it "supports empty input" $
       parseLabelDef [] `shouldBe` Nothing
 
@@ -79,11 +73,10 @@ spec = do
     it "requires label" $
       parseLabelRef [T.Ampersand] `shouldBe` Nothing
     it "requires ampersand" $
-      parseLabelRef [T.Identifier "label"] `shouldBe` Nothing   
-    it "supports non-truncated input" $ do
-      parseLabelRef [T.Ampersand, T.Identifier "sum", T.Operator Nop] `shouldBe` success (LabelRef Global "sum") 2         
+      parseLabelRef [T.Identifier "label"] `shouldBe` Nothing
+    it "supports non-truncated input" $ parseLabelRef [T.Ampersand, T.Identifier "sum", T.Operator Nop] `shouldBe` success (LabelRef Global "sum") 2
     it "supports empty input" $
-      parseLabelRef [] `shouldBe` Nothing      
+      parseLabelRef [] `shouldBe` Nothing
 
   describe "parseParam" $ do
     it "parses int params" $ do
@@ -96,9 +89,9 @@ spec = do
       parseParam [T.Ampersand, T.Identifier "program"] `shouldBe` expected
     it "supports non-truncated input" $ do
       let expected = success (Param (Integer 1)) 1
-      parseParam [T.IntLiteral 1, T.IntLiteral 2, T.IntLiteral 3] `shouldBe` expected  
+      parseParam [T.IntLiteral 1, T.IntLiteral 2, T.IntLiteral 3] `shouldBe` expected
     it "supports empty input" $
-      parseParam [] `shouldBe` Nothing       
+      parseParam [] `shouldBe` Nothing
 
   describe "parseInstr" $ do
     it "parses no-param operator" $ do
@@ -113,53 +106,53 @@ spec = do
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (Integer 4))
+                                Param (Integer 4)
                                ])
                              ) (length input)
-      parseInstr input `shouldBe` expected      
+      parseInstr input `shouldBe` expected
     it "parses operator with single label ref param" $ do
       let input = [T.Operator Call, T.Ampersand, T.Identifier "program"]
       let expected = success (Instruction
                                (Operator Call)
                                (Params [
-                                (Param (LabelRef Global "program"))
+                                Param (LabelRef Global "program")
                                ])
                              ) (length input)
-      parseInstr input `shouldBe` expected    
+      parseInstr input `shouldBe` expected
     it "parses operator with multiple int params" $ do
       let input = [T.Operator Push
                   , T.IntLiteral 1
                   , T.IntLiteral 4
                   , T.IntLiteral 2
                   , T.IntLiteral 0
-                  ]                
+                  ]
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (Integer 1)),
-                                (Param (Integer 4)),
-                                (Param (Integer 2)),
-                                (Param (Integer 0))
+                                Param (Integer 1),
+                                Param (Integer 4),
+                                Param (Integer 2),
+                                Param (Integer 0)
                                ])
                              ) (length input)
-      parseInstr input `shouldBe` expected       
+      parseInstr input `shouldBe` expected
     it "parses operator with multiple param ref params" $ do
       let input = [T.Operator Push
                   , T.Ampersand, T.Dot, T.Identifier "program"
                   , T.Ampersand, T.Dot, T.Identifier "main"
                   , T.Ampersand, T.Identifier "foo"
                   , T.Ampersand, T.Dot, T.Identifier "bar"
-                  ]                
+                  ]
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (LabelRef Local "program")),
-                                (Param (LabelRef Local "main")),
-                                (Param (LabelRef Global "foo")),
-                                (Param (LabelRef Local "bar"))
+                                Param (LabelRef Local "program"),
+                                Param (LabelRef Local "main"),
+                                Param (LabelRef Global "foo"),
+                                Param (LabelRef Local "bar")
                                ])
                              ) (length input)
-      parseInstr input `shouldBe` expected       
+      parseInstr input `shouldBe` expected
     it "parses operator with multiple mixed params" $ do
       let input = [T.Operator Push
                   , T.Ampersand, T.Identifier "program"
@@ -170,21 +163,21 @@ spec = do
                   , T.IntLiteral 11
                   , T.Ampersand, T.Dot, T.Identifier "bar"
                   , T.IntLiteral 20
-                  ]                
+                  ]
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (LabelRef Global "program")),
-                                (Param (Integer 4)),
-                                (Param (LabelRef Local "main")),
-                                (Param (LabelRef Global "foo")),
-                                (Param (Integer 10)),
-                                (Param (Integer 11)),
-                                (Param (LabelRef Local "bar")),
-                                (Param (Integer 20))
+                                Param (LabelRef Global "program"),
+                                Param (Integer 4),
+                                Param (LabelRef Local "main"),
+                                Param (LabelRef Global "foo"),
+                                Param (Integer 10),
+                                Param (Integer 11),
+                                Param (LabelRef Local "bar"),
+                                Param (Integer 20)
                                ])
                              ) (length input)
-      parseInstr input `shouldBe` expected 
+      parseInstr input `shouldBe` expected
     it "supports non-truncated input" $ do
       let input = [T.Operator Push
                   , T.Ampersand, T.Identifier "program"
@@ -196,26 +189,26 @@ spec = do
                   , T.Ampersand, T.Identifier "bar"
                   , T.IntLiteral 20 -- this is the last param, so we're going to stop here (13 tokens so far)
                   , T.Operator Call
-                  , T.Ampersand, T.Identifier "program"                  
-                  ]                
+                  , T.Ampersand, T.Identifier "program"
+                  ]
       let expected = success (Instruction
                                (Operator Push)
                                (Params [
-                                (Param (LabelRef Global "program")),
-                                (Param (Integer 4)),
-                                (Param (LabelRef Global "main")),
-                                (Param (LabelRef Local "foo")),
-                                (Param (Integer 10)),
-                                (Param (Integer 11)),
-                                (Param (LabelRef Global "bar")),
-                                (Param (Integer 20))
+                                Param (LabelRef Global "program"),
+                                Param (Integer 4),
+                                Param (LabelRef Global "main"),
+                                Param (LabelRef Local "foo"),
+                                Param (Integer 10),
+                                Param (Integer 11),
+                                Param (LabelRef Global "bar"),
+                                Param (Integer 20)
                                ])
                              ) 14
-      parseInstr input `shouldBe` expected 
+      parseInstr input `shouldBe` expected
     it "supports empty input" $
-      parseInstr [] `shouldBe` Nothing       
+      parseInstr [] `shouldBe` Nothing
 
-  describe "parseLine" $ do              
+  describe "parseLine" $ do
     it "supports label definition and operator in the same line" $ do
       let input = [T.Dot, T.Identifier "main", T.Colon, T.Operator Call, T.Ampersand, T.Identifier "program"]
       let expected = success (Line
@@ -223,7 +216,7 @@ spec = do
                                (Instruction
                                 (Operator Call)
                                 (Params [
-                                  (Param (LabelRef Global "program"))
+                                  Param (LabelRef Global "program")
                                 ])
                                )
                              ) (length input)
@@ -231,10 +224,10 @@ spec = do
     it "supports line with just label definition" $ do
       let input = [T.Identifier "main", T.Colon]
       let expected = success (Line
-                               (LabelDef Global "main")     
-                               Empty                          
+                               (LabelDef Global "main")
+                               Empty
                              ) (length input)
-      parseLine input `shouldBe` expected      
+      parseLine input `shouldBe` expected
     it "supports line with just operator" $ do
       let input = [T.Operator Call, T.Ampersand, T.Dot, T.Identifier "program"]
       let expected = success (Line
@@ -242,7 +235,7 @@ spec = do
                                (Instruction
                                 (Operator Call)
                                 (Params [
-                                  (Param (LabelRef Local "program"))
+                                  Param (LabelRef Local "program")
                                 ])
                                )
                              ) (length input)
@@ -254,117 +247,117 @@ spec = do
                                (Instruction
                                 (Operator Call)
                                 (Params [
-                                  (Param (LabelRef Global "program"))
+                                  Param (LabelRef Global "program")
                                 ])
                                )
                              ) 5
-      parseLine input `shouldBe` expected      
+      parseLine input `shouldBe` expected
     it "parses empty input" $
       parseLine [] `shouldBe` Nothing
-    
+
   describe "mapAST" $ do
     it "returns mapped AST if wrapped parser succeeded" $ do
-      let astMapper ast = Param ast
+      let astMapper = Param
       let parser = const $ success Colon 1
       let input = [T.StringLiteral "Some not important input"]
       mapAST parser astMapper input `shouldBe` success (Param Colon) 1
     it "results Nothing when wrapped parser failed" $ do
-      let astMapper ast = Param ast
+      let astMapper = Param
       let parser = const Nothing
       let input = [T.StringLiteral "Some not important input"]
       mapAST parser astMapper input `shouldBe` Nothing
     it "supports empty input irrespective of wrapped parser" $ do
-      let astMapper ast = Param ast
+      let astMapper = Param
       let parser = const $ success Colon 1
       let input = []
       mapAST parser astMapper input `shouldBe` Nothing
-    
+
   describe "parseOptionally" $ do
     it "returns parsed AST if wrapped parser succeeded" $ do
       let parser = const $ success Ampersand 1
       let input = [T.StringLiteral "Some not important input"]
       parseOptionally parser input `shouldBe` success Ampersand 1
     it "returns Empty if wrapped parser failed" $ do
-      let parser = const $ Nothing
+      let parser = const Nothing
       let input = [T.StringLiteral "Some not important input"]
-      parseOptionally parser input `shouldBe` success Empty 0  
+      parseOptionally parser input `shouldBe` success Empty 0
     it "supports empty input irrespective of wrapped parser" $ do
-      let parser = const $ Nothing
+      let parser = const Nothing
       let input = []
-      parseOptionally parser input `shouldBe` success Empty 0          
+      parseOptionally parser input `shouldBe` success Empty 0
 
   describe "parseMany"  $ do
     it "parses many occurrences on truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon, T.Colon, T.Colon]
       parseMany colonParser combiner input `shouldBe` success (Params [Colon, Colon, Colon]) 3
     it "parses single occurence on truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon]
-      parseMany colonParser combiner input `shouldBe` success (Params [Colon]) 1      
+      parseMany colonParser combiner input `shouldBe` success (Params [Colon]) 1
     it "parses many occurrences on non-truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon, T.Colon, T.Colon, T.Ampersand]
       parseMany colonParser combiner input `shouldBe` success (Params [Colon, Colon, Colon]) 3
     it "parses single occurence on non-truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon, T.Ampersand]
-      parseMany colonParser combiner input `shouldBe` success (Params [Colon]) 1  
+      parseMany colonParser combiner input `shouldBe` success (Params [Colon]) 1
     it "rejects input if current token is not parseable" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Ampersand, T.Colon, T.Colon, T.Colon]
-      parseMany colonParser combiner input `shouldBe` Nothing  
+      parseMany colonParser combiner input `shouldBe` Nothing
     it "supports empty input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = []
-      parseMany colonParser combiner input `shouldBe` Nothing   
+      parseMany colonParser combiner input `shouldBe` Nothing
 
   describe "parseMany0"  $ do
     it "parses many occurrences on truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon, T.Colon, T.Colon]
       parseMany0 colonParser combiner input `shouldBe` success (Params [Colon, Colon, Colon]) 3
     it "parses single occurence on truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon]
-      parseMany0 colonParser combiner input `shouldBe` success (Params [Colon]) 1      
+      parseMany0 colonParser combiner input `shouldBe` success (Params [Colon]) 1
     it "parses many occurrences on non-truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon, T.Colon, T.Colon, T.Ampersand]
       parseMany0 colonParser combiner input `shouldBe` success (Params [Colon, Colon, Colon]) 3
     it "parses single occurence on non-truncated input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Colon, T.Ampersand]
-      parseMany0 colonParser combiner input `shouldBe` success (Params [Colon]) 1  
+      parseMany0 colonParser combiner input `shouldBe` success (Params [Colon]) 1
     it "accepts input even though current token is not parseable" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = [T.Ampersand, T.Colon, T.Colon, T.Colon]
-      parseMany0 colonParser combiner input `shouldBe` success Empty 0  
+      parseMany0 colonParser combiner input `shouldBe` success Empty 0
     it "supports empty input" $ do
       let colonParser (T.Colon:_) = success Colon 1
-          colonParser _           = Nothing   
+          colonParser _           = Nothing
       let combiner = Params
       let input = []
       parseMany0 colonParser combiner input `shouldBe` success Empty 0
@@ -375,7 +368,7 @@ spec = do
                               , Nothing
                               , Nothing
                               , Nothing
-                              , Nothing 
+                              , Nothing
                               ]
       let input = [T.StringLiteral "some not important input"]
       parseAny parsers input `shouldBe` success Ampersand 1
@@ -384,7 +377,7 @@ spec = do
                               , Nothing
                               , success (Integer 4) 1
                               , Nothing
-                              , Nothing 
+                              , Nothing
                               , success (LabelDef Local "not me") 2
                               , Nothing
                               , success (Instruction (Operator Push) Empty) 1
@@ -395,14 +388,14 @@ spec = do
                               , success Colon 1
                               , Nothing
                               ]
-      let input = [T.StringLiteral "some not important input"]                              
+      let input = [T.StringLiteral "some not important input"]
       parseAny parsers input `shouldBe` success (Integer 4) 1
     it "returns Nothing if no one of the parsers matches the input" $ do
-      let parsers = map const (take 4 $ repeat $ Nothing)
-      let input = [T.StringLiteral "some not important input"]                              
+      let parsers = replicate 4 (const Nothing)
+      let input = [T.StringLiteral "some not important input"]
       parseAny parsers input `shouldBe` Nothing
     it "always returns Nothing if no parsers are defined" $ do
-      let input = [T.StringLiteral "some not important input"]                              
+      let input = [T.StringLiteral "some not important input"]
       parseAny [] input `shouldBe` Nothing
     it "supports empty input irrespective of wrapped parsers" $ do
       let parsers = map const [ success (Integer 4) 1
@@ -413,45 +406,45 @@ spec = do
                               , success Colon 1
                               ]
       let input = []
-      parseAny parsers input `shouldBe` Nothing  
-              
+      parseAny parsers input `shouldBe` Nothing
+
   describe "parseSeq" $ do
     it "parses truncated input" $ do
       let colonParser (T.Colon:_)           = success Colon 1
-          colonParser _                     = Nothing  
+          colonParser _                     = Nothing
       let ampersandParser (T.Ampersand:_)   = success Ampersand 1
-          ampersandParser _                 = Nothing              
+          ampersandParser _                 = Nothing
       let combiner = Params
       let pattern = [colonParser, ampersandParser]
       let input = [T.Colon, T.Ampersand]
       parseSeq pattern combiner input `shouldBe` success (Params [Colon, Ampersand]) 2
     it "parses non-truncated input" $ do
       let colonParser (T.Colon:_)           = success Colon 1
-          colonParser _                     = Nothing  
+          colonParser _                     = Nothing
       let ampersandParser (T.Ampersand:_)   = success Ampersand 1
-          ampersandParser _                 = Nothing              
+          ampersandParser _                 = Nothing
       let combiner = Params
       let pattern = [colonParser, ampersandParser]
       let input = [T.Colon, T.Ampersand, T.Colon]
       parseSeq pattern combiner input `shouldBe` success (Params [Colon, Ampersand]) 2
     it "rejects incomplete pattern" $ do
       let colonParser (T.Colon:_)           = success Colon 1
-          colonParser _                     = Nothing  
+          colonParser _                     = Nothing
       let ampersandParser (T.Ampersand:_)   = success Ampersand 1
-          ampersandParser _                 = Nothing              
+          ampersandParser _                 = Nothing
       let combiner = Params
       let pattern = [colonParser, ampersandParser]
       let input = [T.Colon]
-      parseSeq pattern combiner input `shouldBe` Nothing   
+      parseSeq pattern combiner input `shouldBe` Nothing
     it "rejects non-matching input" $ do
       let colonParser (T.Colon:_)           = success Colon 1
-          colonParser _                     = Nothing  
+          colonParser _                     = Nothing
       let ampersandParser (T.Ampersand:_)   = success Ampersand 1
-          ampersandParser _                 = Nothing              
+          ampersandParser _                 = Nothing
       let combiner = Params
       let pattern = [colonParser, ampersandParser]
       let input = [T.Ampersand, T.Colon]
-      parseSeq pattern combiner input `shouldBe` Nothing    
+      parseSeq pattern combiner input `shouldBe` Nothing
     it "supports empty input irrespective of wrapped parsers" $ do
       let pattern = map const [ success (Integer 4) 1
                               , success (LabelDef Global "not me") 2
@@ -471,11 +464,11 @@ spec = do
     it "returns Nothing if there are tokens left to be consumed, even though the wrapped parser succeeded to parse" $ do
       let parser = const $ success Colon 1
       let input = [T.Colon, T.Ampersand]
-      assertConsumed parser input `shouldBe` Nothing  
+      assertConsumed parser input `shouldBe` Nothing
     it "supports empty input" $ do
       let parser = const $ success Colon 1
       let input = []
-      assertConsumed parser input `shouldBe` Nothing  
+      assertConsumed parser input `shouldBe` Nothing
 
   describe "parse" $ do
     it "parses empty input" $ do
@@ -486,11 +479,11 @@ spec = do
       let input = "add1_2: push 1\npush 2\nadd"
       let (Right tokens) = T.tokenize input
       --                       Labels:                          Operations:                  Params:
-      let expected = Program [ (Line (LabelDef Global "add1_2") (Instruction (Operator Push) (Params [Param $ Integer 1])))
-                             , (Line Empty                      (Instruction (Operator Push) (Params [Param $ Integer 2])))
-                             , (Line Empty                      (Instruction (Operator Add)  Empty))
+      let expected = Program [ Line (LabelDef Global "add1_2") (Instruction (Operator Push) (Params [Param $ Integer 1]))
+                             , Line Empty                      (Instruction (Operator Push) (Params [Param $ Integer 2]))
+                             , Line Empty                      (Instruction (Operator Add)  Empty)
                              ]
-      parse tokens `shouldBe` (Right $ expected :: Either String AST)
+      parse tokens `shouldBe` (Right expected :: Either String AST)
     it "rejects multiple instructions in single line" $ do
       let input = "push 1 add"
       let (Right tokens) = T.tokenize input
@@ -500,9 +493,9 @@ spec = do
       let (Right tokens) = T.tokenize input
       parse tokens `shouldBe` (Left "Parse error(s):\n[Identifier \"label1\",Colon,Identifier \"label2\",Colon]" :: Either String AST)
     it "rejects instruction followed by a label definition" $ do
-      let input = "pop label:"      
+      let input = "pop label:"
       let (Right tokens) = T.tokenize input
-      parse tokens `shouldBe` (Left "Parse error(s):\n[Operator Pop,Identifier \"label\",Colon]" :: Either String AST)      
+      parse tokens `shouldBe` (Left "Parse error(s):\n[Operator Pop,Identifier \"label\",Colon]" :: Either String AST)
     it "rejects orphaned identifiers" $ do
       let inputs = ["id", "push id", "main: id", "id main:"]
       let tokens = map ((\(Right t) -> t) . T.tokenize) inputs
@@ -521,7 +514,7 @@ spec = do
                               , "Parse error(s):\n[Ampersand,IntLiteral 4]"
                               , "Parse error(s):\n[Identifier \"label\",IntLiteral 5,Colon]"
                               ] :: [Either String AST]
-      map parse tokens `shouldBe` expected   
+      map parse tokens `shouldBe` expected
     it "parses example #1" $ do
       let input = "main: ; here we define some main label\n\
                 \      push 7    ; we push 7 to the stack\n\
@@ -533,12 +526,12 @@ spec = do
                 \      ret"
       let (Right tokens) = T.tokenize input
       --                       Labels:                               Operations:                  Params:
-      let expected = Program [ (Line (LabelDef Global "main") Empty)
-                             , (Line Empty                           (Instruction (Operator Push)  (Params [Param $ Integer 7])))
-                             , (Line Empty                           (Instruction (Operator Push)  (Params [Param $ Integer 4])))
-                             , (Line Empty                           (Instruction (Operator Call)  (Params [Param $ LabelRef Global "sum"])))
-                             , (Line Empty                           (Instruction (Operator Halt)  Empty))
-                             , (Line (LabelDef Global "sum")         (Instruction (Operator Add)   Empty))
-                             , (Line Empty                           (Instruction (Operator Ret)   Empty))
+      let expected = Program [ Line (LabelDef Global "main") Empty
+                             , Line Empty                           (Instruction (Operator Push)  (Params [Param $ Integer 7]))
+                             , Line Empty                           (Instruction (Operator Push)  (Params [Param $ Integer 4]))
+                             , Line Empty                           (Instruction (Operator Call)  (Params [Param $ LabelRef Global "sum"]))
+                             , Line Empty                           (Instruction (Operator Halt)  Empty)
+                             , Line (LabelDef Global "sum")         (Instruction (Operator Add)   Empty)
+                             , Line Empty                           (Instruction (Operator Ret)   Empty)
                              ]
-      parse tokens `shouldBe` (Right $ expected :: Either String AST)
+      parse tokens `shouldBe` (Right expected :: Either String AST)

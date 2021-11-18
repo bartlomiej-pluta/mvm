@@ -741,14 +741,14 @@ spec = do
       let vm = empty { _stack = S.fromList [], _fp = 0 }
       let input = " ret \n\
                   \ halt  "
-      let expected = Left "Cannot determine previous frame pointer (fp)"      
+      let expected = Left "Cannot determine frame pointer (fp) - index 0 out of frame bounds"      
       actual <- exec vm input
       actual `shouldBe` expected  
     it "raises error if there is no return address on the stack (stack size is 1)" $ do
       let vm = empty { _stack = S.fromList [-1], _fp = 0 }
       let input = " ret    \n\
                   \ halt   "
-      let expected = Left "Cannot determine return address"      
+      let expected = Left "Cannot determine return address - index 1 out of frame bounds"      
       actual <- exec vm input
       actual `shouldBe` expected      
 
@@ -790,7 +790,7 @@ spec = do
     it "raises error if stack is empty" $ do      
       let input = " lda 0  \n\
                   \ halt   "
-      let expected = Left "Index 0 out of stack bounds"
+      let expected = Left "Cannot determine call argument - index 0 out of frame bounds"
       let vm = empty { _stack = S.fromList [], _fp = 0 }
       actual <- exec vm input            
       actual `shouldBe` expected  
@@ -798,14 +798,14 @@ spec = do
       let vm = empty { _stack = S.fromList [-1], _fp = 0 }
       let input = " lda 0  \n\
                   \ halt   "
-      let expected = Left "Index 0 out of stack bounds"      
+      let expected = Left "Cannot determine call argument - index 0 out of frame bounds"      
       actual <- exec vm input
       actual `shouldBe` expected    
     it "raises error if stack contains only previous fp and return address" $ do
       let vm = empty { _stack = S.fromList [2, -1], _fp = 0 }
       let input = " lda 0  \n\
                   \ halt   "
-      let expected = Left "Index 0 out of stack bounds"      
+      let expected = Left "Cannot determine call argument - index 0 out of frame bounds"      
       actual <- exec vm input
       actual `shouldBe` expected 
     it "loads the first (0) argument if stack contains only previous fp, return address and single argument" $ do
@@ -819,7 +819,7 @@ spec = do
       let vm = empty { _stack = S.fromList [2, -1, 3], _fp = 1 }
       let input = " lda 1  \n\
                   \ halt   "
-      let expected = Left "Index 1 out of stack bounds"      
+      let expected = Left "Cannot determine call argument - index 1 out of frame bounds"      
       actual <- exec vm input
       actual `shouldBe` expected 
     it "loads the 11th argument if it exists" $ do
@@ -861,109 +861,7 @@ spec = do
                   \      ret       "
       let expected = done [25] 8 (-1)
       actual <- run input
-      actual `shouldBe` expected  
-
-  describe "roll" $ do
-    it "supports stack with 5 elements" $ do
-      let input = " push 4 \n\
-                  \ push 5 \n\
-                  \ push 6 \n\
-                  \ push 7 \n\ 
-                  \ push 8 \n\               
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [7, 6, 5, 4, 8] 11 (-1)
-      actual <- run input
       actual `shouldBe` expected     
-    it "supports stack with 4 elements" $ do
-      let input = " push 4 \n\
-                  \ push 5 \n\
-                  \ push 6 \n\
-                  \ push 7 \n\                
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [6, 5, 4, 7] 9 (-1)
-      actual <- run input
-      actual `shouldBe` expected 
-    it "supports stack with 3 elements" $ do
-      let input = " push 4 \n\
-                  \ push 5 \n\
-                  \ push 6 \n\
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [5, 4, 6] 7 (-1)
-      actual <- run input
-      actual `shouldBe` expected 
-    it "supports stack with 2 elements" $ do
-      let input = " push 4 \n\
-                  \ push 5 \n\
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [4, 5] 5 (-1)
-      actual <- run input
-      actual `shouldBe` expected 
-    it "supports singleton stack" $ do
-      let input = " push 4 \n\
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [4] 3 (-1)
-      actual <- run input
-      actual `shouldBe` expected 
-    it "supports empty stack" $ do
-      let input = " roll \n\
-                  \ halt "
-      let expected = done [] 1 (-1)
-      actual <- run input
-      actual `shouldBe` expected 
-    it "can be composed" $ do
-      let input = " push 4 \n\
-                  \ push 5 \n\
-                  \ push 6 \n\
-                  \ push 7 \n\ 
-                  \ push 8 \n\               
-                  \ roll   \n\
-                  \ roll   \n\
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [5, 4, 8, 7, 6] 13 (-1)
-      actual <- run input
-      actual `shouldBe` expected     
-    it "does not change the stack order when rolling number equals the stack size" $ do
-      let input = " push 4 \n\
-                  \ push 5 \n\
-                  \ push 6 \n\
-                  \ push 7 \n\ 
-                  \ push 8 \n\               
-                  \ roll   \n\
-                  \ roll   \n\
-                  \ roll   \n\
-                  \ roll   \n\
-                  \ roll   \n\
-                  \ halt   "
-      let expected = done [8, 7, 6, 5, 4] 15 (-1)
-      actual <- run input
-      actual `shouldBe` expected       
-    it "works in the context of current frame" $ do
-      let input = "      push 1    \n\
-                  \      push 2    \n\
-                  \      push 3    \n\
-                  \      call &foo \n\
-                  \ foo: push 10   \n\
-                  \      push 20   \n\
-                  \      push 30   \n\
-                  \      call &bar \n\
-                  \ bar: push 70   \n\
-                  \      push 80   \n\
-                  \      push 90   \n\
-                  \      roll      \n\
-                  \      halt      "
-      let expected = done [80, 70, 90, 16, 3, 30, 20, 10, 8, -1, 3, 2, 1] 23 8
-      --                   ├────────┤         ├────────┤         ├─────┤
-      --                   │        │         │        │         └─────┴── there are no 'roll' instructions under the root so the data is in the correct order
-      --                   │        │         └────────┴────────────────── as above - no 'roll' instruction under the 'foo' function
-      --                   └────────┴───────────────────────────────────── the 'roll' instruction is called under the 'bar' function, so the numbers are rolled  
-      actual <- run input
-      actual `shouldBe` expected      
 
   describe "over" $ do
     it "pushes the second value from the top" $ do
@@ -1017,7 +915,7 @@ spec = do
                   \ push 3 \n\
                   \ ldl 0  \n\
                   \ halt   "
-      let expected = Left "No active stack frame to load local variable"
+      let expected = Left "No active stack frame"
       actual <- run input
       actual `shouldBe` expected
 
@@ -1040,7 +938,7 @@ spec = do
                   \ push 3 \n\
                   \ stl 0  \n\
                   \ halt   "
-      let expected = Left "No active stack frame to store local variable"
+      let expected = Left "No active stack frame"
       actual <- run input
       actual `shouldBe` expected      
 

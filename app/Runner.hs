@@ -16,4 +16,4 @@ runDebug :: String -> IO (Either String VM)
 runDebug = exec empty { _debug = True }
 
 exec :: VM -> String -> IO (Either String VM)
-exec vm input = runExceptT $ return input >>= (except . compile) >>= (liftIO . VM.run vm . B.pack) >>= except >>= return
+exec vm input = runExceptT $ (except . compile) input >>= (liftIO . VM.run vm . B.pack) >>= except

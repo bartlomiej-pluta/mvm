@@ -7,4 +7,4 @@ import Assembler.Parser (parse)
 import Assembler.Emitter (emit)
 
 compile :: String -> Either String [Word8]
-compile input = return input >>= tokenize >>= parse >>= emit
+compile input = tokenize input >>= parse >>= emit

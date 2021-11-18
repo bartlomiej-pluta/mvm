@@ -12,7 +12,7 @@ success token consumed = Just $ TokenizeResult token consumed
 
 spec :: Spec
 spec = do
-  describe "keywordTokenizer" $ do 
+  describe "keywordTokenizer" $ do
     it "supports truncated input" $
       keywordTokenizer True "hey" NewLine "hey" `shouldBe` success NewLine 3
     it "supports non-truncated input" $
@@ -20,12 +20,12 @@ spec = do
     it "supports case sensitivity" $
       keywordTokenizer True "hey" NewLine "heYjude" `shouldBe` Nothing
     it "supports case insensitivity" $
-      keywordTokenizer False "hey" NewLine "heYjude" `shouldBe` success NewLine 3    
+      keywordTokenizer False "hey" NewLine "heYjude" `shouldBe` success NewLine 3
     it "returns correct token" $
       keywordTokenizer True "hey" Colon "heyjude" `shouldBe` success Colon 3
     it "returns Nothing if input does not match" $
       keywordTokenizer True "hey" Colon "xheyjude" `shouldBe` Nothing
-    it "supports empty input" $ 
+    it "supports empty input" $
       keywordTokenizer True "hey" Colon "" `shouldBe` Nothing
 
   describe "operatorTokenizer" $ do
@@ -35,7 +35,7 @@ spec = do
       operatorTokenizer Pop "pops" `shouldBe` success (Operator Pop) 3
     it "returns Nothing if input does not match" $
       operatorTokenizer Pop "poop" `shouldBe` Nothing
-    it "supports empty input" $ 
+    it "supports empty input" $
       operatorTokenizer Call "" `shouldBe` Nothing
 
   describe "tokenizeOperators" $ do
@@ -53,7 +53,7 @@ spec = do
       map tokenizeOperators input `shouldBe` expected
     it "rejects other input" $
       tokenizeOperators "some unsupported input" `shouldBe` Nothing
-    it "supports empty input" $ 
+    it "supports empty input" $
       tokenizeOperators "" `shouldBe` Nothing
 
   describe "tokenizeIdentifier" $ do
@@ -62,12 +62,12 @@ spec = do
     it "parses correct identifier with numbers" $
       tokenizeIdentifier "someId14" `shouldBe` success (Identifier "someId14") 8
     it "parses correct identifier with underscores" $
-      tokenizeIdentifier "some_Id" `shouldBe` success (Identifier "some_Id") 7      
-    it "disallows to start identifier with underscore" $    
+      tokenizeIdentifier "some_Id" `shouldBe` success (Identifier "some_Id") 7
+    it "disallows to start identifier with underscore" $
       tokenizeIdentifier "_someId" `shouldBe` Nothing
-    it "disallows to start identifier with digit" $    
+    it "disallows to start identifier with digit" $
       tokenizeIdentifier "5someId" `shouldBe` Nothing
-    it "supports empty input" $ 
+    it "supports empty input" $
       tokenizeIdentifier "" `shouldBe` Nothing
 
   describe "tokenizeWhitespace" $ do
@@ -80,12 +80,12 @@ spec = do
     it "parses CR" $
       tokenizeWhitespace "\r" `shouldBe` success WhiteSpace 1
     it "rejects non-whitespace chars" $ do
-      let input = map (\x -> [x]) $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9']
-      let expected = take (length input) . repeat $ Nothing
+      let input = map (: []) $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9']
+      let expected = replicate (length input) Nothing
       map tokenizeWhitespace input `shouldBe` expected
-    it "supports empty input" $ 
-      tokenizeIdentifier "" `shouldBe` Nothing      
-  
+    it "supports empty input" $
+      tokenizeIdentifier "" `shouldBe` Nothing
+
   describe "tokenizeDecimal" $ do
     it "parses numbers from 0 to 65535" $ do
       let nums = [0 .. 65535]
@@ -95,34 +95,34 @@ spec = do
     it "does not support negative numbers" $ do
       let nums = [-1, -2 .. -65535] :: [Integer]
       let input = map show nums
-      let expected = take (length nums) . repeat $ Nothing
+      let expected = replicate (length nums) Nothing
       map tokenizeDecimal input `shouldBe` expected
     it "rejects other input" $
-      tokenizeDecimal "some unsupported input" `shouldBe` Nothing   
-    it "supports empty input" $ 
-      tokenizeDecimal "" `shouldBe` Nothing             
-    
+      tokenizeDecimal "some unsupported input" `shouldBe` Nothing
+    it "supports empty input" $
+      tokenizeDecimal "" `shouldBe` Nothing
+
   describe "tokenizeHex" $ do
     it "parses numbers from 0x0 to 0xFFFF" $ do
       let nums = [0 .. 0xFFFF]
-      let input = map (("0x"++) . (flip showHex "")) nums
-      let expected = map (\n -> success (IntLiteral n) (length . ("0x"++) . (flip showHex "") $ n)) nums
+      let input = map (("0x"++) . flip showHex "") nums
+      let expected = map (\n -> success (IntLiteral n) (length . ("0x"++) . flip showHex "" $ n)) nums
       map tokenizeHex input `shouldBe` expected
     it "does not support negative numbers" $ do
       let nums = [0 .. 0xFFFF] :: [Integer]
-      let input = map (("-0x"++) . (flip showHex "")) nums
-      let expected = take (length nums) . repeat $ Nothing
-      map tokenizeHex input `shouldBe` expected      
+      let input = map (("-0x"++) . flip showHex "") nums
+      let expected = replicate (length nums) Nothing
+      map tokenizeHex input `shouldBe` expected
     it "accepts left-padded number" $
       tokenizeHex "0x0010" `shouldBe` success (IntLiteral 16) 6
     it "rejects other input" $
-      tokenizeHex "some unsupported input" `shouldBe` Nothing   
+      tokenizeHex "some unsupported input" `shouldBe` Nothing
     it "rejects '0'" $
       tokenizeHex "0" `shouldBe` Nothing
     it "rejects '0x'" $
-      tokenizeHex "0x" `shouldBe` Nothing      
-    it "supports empty input" $ 
-      tokenizeHex "" `shouldBe` Nothing   
+      tokenizeHex "0x" `shouldBe` Nothing
+    it "supports empty input" $
+      tokenizeHex "" `shouldBe` Nothing
 
   describe "tokenizeChar" $ do
     it "parses letters literals" $ do
@@ -134,13 +134,13 @@ spec = do
       let chars = ['0' .. '9']
       let input = map (\c -> "'" ++ [c] ++ "'") chars
       let expected = map (\c -> success (IntLiteral (ord c)) 3) chars
-      map tokenizeChar input `shouldBe` expected      
+      map tokenizeChar input `shouldBe` expected
     it "parses regular symbols literals" $ do
       let chars = "!@#$%^&*()_+-=[]{};:|,/?<>\""
       let input = map (\c -> "'" ++ [c] ++ "'") chars
       let expected = map (\c -> success (IntLiteral (ord c)) 3) chars
-      map tokenizeChar input `shouldBe` expected    
-    it "parses escape sequences literals" $ do      
+      map tokenizeChar input `shouldBe` expected
+    it "parses escape sequences literals" $ do
       let input = [ "'\\n'"
                   , "'\\t'"
                   , "'\\v'"
@@ -162,7 +162,7 @@ spec = do
       tokenizeChar "'ab'" `shouldBe` Nothing
     it "rejects non-closed char literals" $
       tokenizeChar "'a" `shouldBe` Nothing
-    it "rejects invalid escape sequences" $ 
+    it "rejects invalid escape sequences" $
       tokenizeChar "'\\x'" `shouldBe` Nothing
     it "rejects empty quotes" $
       tokenizeChar "''" `shouldBe` Nothing
@@ -185,9 +185,8 @@ spec = do
       let str = "!@2#$%9^&*(1)_s+2-=[2h6sh]t{};:'e|<>,./?"
       let len = length str + 2
       let input = "\"" ++ str ++ "\""
-      tokenizeString input `shouldBe` success (StringLiteral str) len  
-    it "supports escape sequences literals" $ do
-      pendingWith "We need probably to fix tokenizeString since the following test fails"
+      tokenizeString input `shouldBe` success (StringLiteral str) len
+    it "supports escape sequences literals" $ pendingWith "We need probably to fix tokenizeString since the following test fails"
       -- TODO:
       -- let str = "\\n\\t\\v\\b\\r\\f\\a\\\\\\\"\\0"
       -- let len = length str + 2
@@ -207,18 +206,18 @@ spec = do
     it "rejects multilined strings" $
       tokenizeString "\"first line\nsecond line\"" `shouldBe` Nothing
     it "supports empty input" $
-      tokenizeString "" `shouldBe` Nothing      
-    
+      tokenizeString "" `shouldBe` Nothing
+
   describe "tokenizeComment" $ do
-    it "properly consumes comment" $ 
+    it "properly consumes comment" $
       tokenizeComment ";some comment\n" `shouldBe` success (Comment "some comment") 13
-    it "properly consumes comment with whitespace padding" $ 
-      tokenizeComment ";  \t  some comment  \t \n  \t" `shouldBe` success (Comment "  \t  some comment  \t ") 22    
+    it "properly consumes comment with whitespace padding" $
+      tokenizeComment ";  \t  some comment  \t \n  \t" `shouldBe` success (Comment "  \t  some comment  \t ") 22
     it "does not treat the input as a comment if it does not start with semicolon" $
       tokenizeComment "some not valid comment\n" `shouldBe` Nothing
-    it "expands the comment till the end of the line" $ 
+    it "expands the comment till the end of the line" $
       tokenizeComment "; some comment ; push 4 push 10\nadd" `shouldBe` success (Comment " some comment ; push 4 push 10") 31
-    it "parses the comment at the end of the input" $ 
+    it "parses the comment at the end of the input" $
       tokenizeComment "; some comment " `shouldBe` success (Comment " some comment ") 15
     it "supports empty input" $
       tokenizeComment "" `shouldBe` Nothing
@@ -241,7 +240,7 @@ spec = do
     it "does not produce any token when the space is present instead" $ do
       let input = "abc "
       let tokenizer _ = success Colon 3
-      sepTokenizer ('-'==) tokenizer input `shouldBe` Nothing     
+      sepTokenizer ('-'==) tokenizer input `shouldBe` Nothing
     it "does not change the number of consumed chars even though it's checking the separator presence" $ do
       let input = "abc-"
       let expected = success Colon 3
@@ -251,24 +250,24 @@ spec = do
     it "supports empty input irrespective of wrapped tokenizer" $ do
       let input = ""
       let tokenizer _ = success Colon 3 -- MOCK: tokenizer returns Just even though the input is empty
-      sepTokenizer ('-'==) tokenizer input `shouldBe` Nothing  
-    
+      sepTokenizer ('-'==) tokenizer input `shouldBe` Nothing
+
   describe "anyTokenizer" $ do
     it "returns the token if at least one subtokenizer produce that" $ do
       let values = [ success Ampersand 1
                    , Nothing
                    , Nothing
                    , Nothing
-                   , Nothing 
+                   , Nothing
                    ]
-      let t = map (\x -> (\_ -> x)) values
+      let t = map const values
       anyTokenizer t "some not important input" `shouldBe` success Ampersand 1
     it "returns the token of the first matching subtokenizer" $ do
       let values = [ Nothing
                    , Nothing
                    , success (IntLiteral 4) 1
                    , Nothing
-                   , Nothing 
+                   , Nothing
                    , success (StringLiteral "not me") 8
                    , Nothing
                    , success (StringLiteral "me neither") 12
@@ -279,19 +278,19 @@ spec = do
                    , success Colon 1
                    , Nothing
                    ]
-      let t = map (\x -> (\_ -> x)) values
+      let t = map const values
       anyTokenizer t "some not important input" `shouldBe` success (IntLiteral 4) 1
     it "returns Nothing if no one of the tokenizers matches the input" $ do
       let values = [ Nothing
                    , Nothing
                    , Nothing
                    , Nothing
-                   , Nothing 
+                   , Nothing
                    ]
-      let t = map (\x -> (\_ -> x)) values
+      let t = map const values
       anyTokenizer t "some not important input" `shouldBe` Nothing
     it "always returns Nothing if no tokenizers are defined" $
-      anyTokenizer [] "some not important input" `shouldBe` Nothing  
+      anyTokenizer [] "some not important input" `shouldBe` Nothing
     it "supports empty input irrespective of wrapped tokenizers" $ do
       let input = ""
       let values = [ success Ampersand 1
@@ -299,47 +298,46 @@ spec = do
                    , success (IntLiteral 3) 1
                    , success (Operator Push) 4
                    ]
-      let t = map (\x -> (\_ -> x)) values
-      anyTokenizer t input `shouldBe` Nothing     
+      let t = map const values
+      anyTokenizer t input `shouldBe` Nothing
 
-  describe "tokenFilter" $ do
-    it "filters out whitespaces and comments" $ do
-      let tokens = [ Operator Push
+  describe "tokenFilter" $ it "filters out whitespaces and comments" $ do
+    let tokens = [ Operator Push
+                 , IntLiteral 4
+                 , Comment "here is the identifier"
+                 , Identifier "someId"
+                 , WhiteSpace
+                 , Colon
+                 , WhiteSpace
+                 , Ampersand
+                 , NewLine
+                 , WhiteSpace
+                 , Comment "some comment"
+                 ]
+    let expected = [ Operator Push
                    , IntLiteral 4
-                   , Comment "here is the identifier"                   
                    , Identifier "someId"
-                   , WhiteSpace                   
                    , Colon
-                   , WhiteSpace                   
                    , Ampersand
                    , NewLine
-                   , WhiteSpace
-                   , Comment "some comment"                   
                    ]
-      let expected = [ Operator Push
-                     , IntLiteral 4
-                     , Identifier "someId"
-                     , Colon
-                     , Ampersand
-                     , NewLine
-                     ]                   
-      filter tokenFilter tokens `shouldBe` expected
+    filter tokenFilter tokens `shouldBe` expected
 
   describe "tokenize" $ do
     it "treats 'pop' as a operator instead of identifier" $
       tokenize "pop" `shouldBe` Right [Operator Pop]
     it "treats 'poop' as a identifier" $
-      tokenize "poop" `shouldBe` Right [Identifier "poop"] 
+      tokenize "poop" `shouldBe` Right [Identifier "poop"]
     it "treats operator as themselves instead of identifiers" $ do
       let ops = [Nop ..]
       let input = map show ops
-      let expected = map (\o -> Right [Operator o]) ops 
+      let expected = map (\o -> Right [Operator o]) ops
       map tokenize input `shouldBe` expected
     it "treats operator-like names (with 's' appended) as identifiers" $ do
       let ops = [Nop ..]
       let input = map ((++"s") . show) ops
-      let expected = map (\i-> Right [Identifier i]) input 
-      map tokenize input `shouldBe` expected      
+      let expected = map (\i-> Right [Identifier i]) input
+      map tokenize input `shouldBe` expected
     it "treats '\n' as a newline instead of whitespace" $
       tokenize "\n" `shouldBe` Right [NewLine]
     it "ignores comments" $ do
@@ -355,11 +353,11 @@ spec = do
     it "accepts 'main: NL" $
       tokenize ".main: \n" `shouldBe` Right [Dot, Identifier "main", Colon, NewLine]
     it "accepts 'call &sum NL" $
-      tokenize "call &sum \n" `shouldBe` Right [Operator Call, Ampersand, Identifier "sum", NewLine]      
+      tokenize "call &sum \n" `shouldBe` Right [Operator Call, Ampersand, Identifier "sum", NewLine]
     it "rejects '4push'" $
-      tokenize "4push" `shouldBe` Left "Unknown token: 4push"  
-    it "supports empty input" $ 
-      tokenize "" `shouldBe` Right []  
+      tokenize "4push" `shouldBe` Left "Unknown token: 4push"
+    it "supports empty input" $
+      tokenize "" `shouldBe` Right []
     it "interprets example #1" $ do
       let input = "main: ; here we define some main label\n\
                 \      push 7    ; we push 7 to the stack\n\
@@ -377,5 +375,5 @@ spec = do
                      , NewLine
                      , Identifier "sum", Colon, Operator Add, NewLine
                      , Operator Ret
-                     ]    
-      tokenize input `shouldBe` Right expected        
+                     ]
+      tokenize input `shouldBe` Right expected
