@@ -5,7 +5,8 @@ import Data.Char (ord, isDigit, isSpace, isAlpha, isAlphaNum, isHexDigit)
 import Data.Monoid (First(..))
 
 import VirtualMachine.VM (Op(..))
-import Util (toLowerCase, controlChar, unescape)
+import Util (toLowerCase, controlChar, unescape, maybeToEither)
+import Control.Monad (guard)
 
 
 data Token = Operator Op
@@ -28,14 +29,10 @@ type Tokenizer = String -> Maybe TokenizeResult
 type CaseSensitive = Bool
 keywordTokenizer :: CaseSensitive -> String -> Token -> Tokenizer
 keywordTokenizer _ _ _ [] = Nothing
-keywordTokenizer cs kwd token input
-  | matches    = Just $ TokenizeResult token len
-  | otherwise  = Nothing
-  where
-    len = length kwd
-    mapper = if cs then id else toLowerCase
-    zipped = zipWith (==) (mapper kwd) (mapper . take len $ input)
-    matches = and zipped && len == length zipped
+keywordTokenizer cs kwd token input = guard matches >> return (TokenizeResult token len)
+  where len     = length kwd
+        matches = mapper kwd == mapper (take len input)
+        mapper  = if cs then id else toLowerCase
 
 operatorTokenizer :: Op -> Tokenizer
 operatorTokenizer op = keywordTokenizer False (toLowerCase . show $ op) (Operator op)
@@ -46,37 +43,29 @@ tokenizeOperators = anyTokenizer $ map operatorTokenizer $ sortBy cmp [Nop ..]
 
 tokenizeIdentifier :: Tokenizer
 tokenizeIdentifier [] = Nothing
-tokenizeIdentifier input@(x:_) = if null identifier || (not . isAlpha) x
-  then Nothing
-  else Just $ TokenizeResult (Identifier identifier) (length identifier)
+tokenizeIdentifier input@(x:_) = guard (not $ null identifier) >> guard (isAlpha x) >> return token
   where identifier = takeWhile (or . sequenceA [isAlphaNum, (=='_')]) input
+        token      = TokenizeResult (Identifier identifier) (length identifier)
 
 tokenizeWhitespace :: Tokenizer
 tokenizeWhitespace [] = Nothing
-tokenizeWhitespace (x:_)
-  | isSpace x = Just $ TokenizeResult WhiteSpace 1
-  | otherwise = Nothing
+tokenizeWhitespace (x:_) = guard (isSpace x) >> return (TokenizeResult WhiteSpace 1)
 
 tokenizeDecimal :: Tokenizer
 tokenizeDecimal [] = Nothing
-tokenizeDecimal input = if null numberStr
-  then Nothing
-  else Just $ TokenizeResult (IntLiteral number) len
-  where
-    number = read numberStr
-    len = length numberStr
-    numberStr = takeWhile isDigit input
+tokenizeDecimal input = guard (not $ null numberStr) >> return token
+  where numberStr = takeWhile isDigit input
+        token     = TokenizeResult (IntLiteral $ read numberStr) $ length numberStr
 
 tokenizeHex :: Tokenizer
-tokenizeHex ('0':'x':input) = if null input
-  then Nothing
-  else Just $ TokenizeResult (IntLiteral $ read $ "0x" ++ numberStr) (length numberStr + 2)
+tokenizeHex ('0':'x':input) = guard (not $ null numberStr) >> return token
   where numberStr = takeWhile isHexDigit input
+        token     = TokenizeResult (IntLiteral $ read $ "0x" ++ numberStr) (length numberStr + 2)
 tokenizeHex _ = Nothing
 
 tokenizeChar :: Tokenizer
-tokenizeChar ('\'':'\\':x:'\'':_) = controlChar x >>= (\s -> return $ TokenizeResult (IntLiteral s) 4)
-tokenizeChar ('\'':x:'\'':_) = Just $ TokenizeResult (IntLiteral . ord $ x) 3
+tokenizeChar ('\'':'\\':x:'\'':_) = controlChar x >>= \s -> return $ TokenizeResult (IntLiteral s) 4
+tokenizeChar ('\'':x:'\'':_) = return $ TokenizeResult (IntLiteral . ord $ x) 3
 tokenizeChar _ = Nothing
 
 tokenizeString :: Tokenizer
@@ -89,11 +78,11 @@ tokenizeString ('"':xs) = do
     extractString (y:ys)
         | y == '"'  = Just []
         | y == '\n' = Nothing
-        | otherwise = extractString ys >>= (\r -> return $ y : r)
+        | otherwise = (y:) <$> extractString ys
 tokenizeString _  = Nothing
 
 tokenizeComment :: Tokenizer
-tokenizeComment (';':xs) = Just $ TokenizeResult (Comment comment) (length comment + 1)
+tokenizeComment (';':xs) = return $ TokenizeResult (Comment comment) (length comment + 1)
   where comment = takeWhile (/='\n') xs
 tokenizeComment _ = Nothing
 
@@ -103,9 +92,8 @@ sepTokenizer _ _ [] = Nothing
 sepTokenizer predicate tokenizer input = do
   result@(TokenizeResult _ consumed) <- tokenizer input
   let next = drop consumed input
-  if null next || (predicate . head $ next)
-  then return result
-  else Nothing
+  guard $ null next || (predicate . head $ next)
+  return result
 
 anyTokenizer :: [Tokenizer] -> Tokenizer
 anyTokenizer _ [] = Nothing
@@ -113,27 +101,24 @@ anyTokenizer tokenizers input = getFirst . mconcat . map First $ sequenceA token
 
 tokenize :: String -> Either String [Token]
 tokenize [] = Right []
-tokenize input = tokens >>= (Right . filter tokenFilter)
-  where
-    tokens = case tokenizers input of
-      (Just (TokenizeResult token chars)) -> tokenize (drop chars input) >>= (\rest -> return $ token : rest)
-      Nothing                             -> Left $ "Unknown token: " ++ take 20 input
-    tokenizers = anyTokenizer
-      [ keywordTokenizer False "\n" NewLine
-      , tokenizeWhitespace
-      , tokenizeComment
-      , sepTokenizer isSpace tokenizeOperators
-      , sepTokenizer isSpace tokenizeHex
-      , sepTokenizer isSpace tokenizeDecimal
-      , tokenizeIdentifier
-      , keywordTokenizer False ":" Colon
-      , keywordTokenizer False "&" Ampersand
-      , keywordTokenizer False "." Dot
-      , tokenizeChar
-      , tokenizeString
-      ]
+tokenize input = tokens >>= (\(TokenizeResult token chars) -> (token:) <$> tokenize (drop chars input)) >>= (Right . filter tokenFilter)
+  where tokens = maybeToEither (tokenizers input) $ "Unknown token: " ++ take 20 input
+        tokenizers = anyTokenizer
+         [ keywordTokenizer False "\n" NewLine
+         , tokenizeWhitespace
+         , tokenizeComment
+         , sepTokenizer isSpace tokenizeOperators
+         , sepTokenizer isSpace tokenizeHex
+         , sepTokenizer isSpace tokenizeDecimal
+         , tokenizeIdentifier
+         , keywordTokenizer False ":" Colon
+         , keywordTokenizer False "&" Ampersand
+         , keywordTokenizer False "." Dot
+         , tokenizeChar
+         , tokenizeString
+         ]
 
 tokenFilter :: Token -> Bool
-tokenFilter WhiteSpace = False
-tokenFilter (Comment _)  = False
-tokenFilter _            = True
+tokenFilter WhiteSpace  = False
+tokenFilter (Comment _) = False
+tokenFilter _           = True

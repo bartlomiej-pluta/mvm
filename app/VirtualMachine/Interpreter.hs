@@ -13,14 +13,13 @@ import qualified Data.ByteString as B
 
 import VirtualMachine.VM (VM(..), Op, Computation, get, pop, pushS, forward, getPc, isHalted, isDebug)
 import VirtualMachine.Instruction (Instruction(..), Unit(..), instructionByOp)
+import Util (maybeToEither)
 
 
 parseInstr :: [Word8] -> Either String (Instruction, [Word8])
 parseInstr (opCode:rest) = do
   let op = toEnum . fromIntegral $ opCode :: Op
-  instr <- case M.lookup op instructionByOp of
-    (Just i) -> Right i
-    Nothing -> Left "Unknown instruction"
+  instr <- maybeToEither (M.lookup  op instructionByOp) "Unknown instruction"
   let noParams = _noParams instr
   let params = map fromIntegral $ take noParams rest :: [Word8]
   unless (length params == noParams) (Left $ "Expected " ++ show noParams ++ " parameter(s), got " ++ show (length params) ++ " for operator '" ++ show op ++ "'")

@@ -6,7 +6,8 @@ import Data.Monoid (First(..))
 
 import qualified Assembler.Tokenizer as T (Token(..))
 import VirtualMachine.VM (Op)
-import Util (explode)
+import Util (explode, maybeToEither)
+import Control.Monad (guard)
 
 data Scope = Local | Global deriving (Eq, Show, Enum, Bounded)
 
@@ -27,7 +28,9 @@ data AST = Empty
          deriving (Eq, Show)
 
 type ConsumedTokens = Int
-data ParseResult = ParseResult AST ConsumedTokens deriving (Eq, Show)
+data ParseResult = ParseResult { _ast :: AST
+                               , _consumed :: ConsumedTokens
+                               } deriving (Eq, Show)
 
 type Parser = [T.Token] -> Maybe ParseResult
 
@@ -64,16 +67,14 @@ parseDot _         = Nothing
 -- label_def := '.'? ID ':'
 parseLabelDef :: Parser
 parseLabelDef = parseSeq [parseOptionally parseDot, parseIdentifier, parseColon] combine
-  where
-    combine [Dot, Identifier iden, _] = LabelDef Local iden
-    combine [_,   Identifier iden, _] = LabelDef Global iden
+  where combine [Dot, Identifier iden, _] = LabelDef Local iden
+        combine [_,   Identifier iden, _] = LabelDef Global iden
 
 -- label_ref := '&' ID
 parseLabelRef :: Parser
 parseLabelRef = parseSeq [parseAmpersand, parseOptionally parseDot, parseIdentifier] combine
-  where
-    combine [_, Dot, Identifier iden] = LabelRef Local iden
-    combine [_, _,   Identifier iden] = LabelRef Global iden
+  where combine [_, Dot, Identifier iden] = LabelRef Local iden
+        combine [_, _,   Identifier iden] = LabelRef Global iden
 
 -- param := INT | label_ref
 parseParam :: Parser
@@ -89,9 +90,7 @@ parseLine = parseSeq [parseOptionally parseLabelDef, parseOptionally parseInstr]
 
 mapAST :: Parser -> (AST -> AST) -> Parser
 mapAST _ _ [] = Nothing
-mapAST parser mapper tokens = do
-  (ParseResult ast consumed) <- parser tokens
-  return $ ParseResult (mapper ast) consumed
+mapAST parser mapper tokens = parser tokens >>= \(ParseResult ast consumed) -> return $ ParseResult (mapper ast) consumed
 
 -- a?
 parseOptionally :: Parser -> Parser
@@ -105,14 +104,11 @@ parseMany0 parser combiner = parseOptionally $ parseMany parser combiner
 
 -- a+
 parseMany :: Parser -> ([AST] -> AST) -> Parser
-parseMany parser combiner tokens = if null asts
-  then Nothing
-  else Just $ ParseResult ast consumed
-  where
-    results = parseGreedy parser tokens
-    consumed = sum $ map (\(ParseResult _ c) -> c) results
-    asts = map (\(ParseResult a _) -> a) results
-    ast = combiner asts
+parseMany parser combiner tokens = guard (not $ null asts) >> return (ParseResult ast consumed)
+  where results  = parseGreedy parser tokens
+        consumed = sum $ map _consumed results
+        asts     = map _ast results
+        ast      = combiner asts
 
 -- a a a a a a a...
 parseGreedy :: Parser -> [T.Token] -> [ParseResult]
@@ -136,11 +132,10 @@ parseSeq :: [Parser] -> ([AST] -> AST) -> Parser
 parseSeq _ _ [] = Nothing
 parseSeq parsers combiner tokens = do
   results <- parseAll parsers tokens
-  let consumed = sum $ map (\(ParseResult _ c) -> c) results
-  let asts = map (\(ParseResult a _) -> a) results
-  if length asts == length parsers
-  then return $ ParseResult (combiner asts) consumed
-  else Nothing
+  let consumed = sum $ map _consumed results
+  let asts = map _ast results
+  guard $ length asts == length parsers
+  return $ ParseResult (combiner asts) consumed
 
 -- a b c
 parseAll :: [Parser] -> [T.Token] -> Maybe [ParseResult]
@@ -153,11 +148,7 @@ parseAll (p:ps) tokens = do
 -- 'Nothing' if not consumed tokens exist
 assertConsumed :: Parser -> Parser
 assertConsumed _ [] = Nothing
-assertConsumed parser tokens = do
-  r@(ParseResult _ consumed) <- parser tokens
-  if null (drop consumed tokens)
-  then return r
-  else Nothing
+assertConsumed parser tokens = parser tokens >>= \r@(ParseResult _ consumed) -> guard (null $ drop consumed tokens) >> return r
 
 parse :: [T.Token] -> Either String AST
 parse tokens = do
@@ -165,6 +156,4 @@ parse tokens = do
   let results = map (assertConsumed parseLine) codeLines
   let errors = filter ((==Nothing) . snd) $ zip codeLines results
   let errorMsg = "Parse error(s):\n" ++ intercalate "\n" (map (show . fst) errors)
-  case sequenceA results of
-    (Just r) -> return $ Program $ map (\(ParseResult ast _) -> ast) r
-    Nothing  -> Left errorMsg
+  Program . map _ast <$> maybeToEither (sequenceA results) errorMsg

@@ -10,6 +10,7 @@ import qualified Data.Sequence as S
 import qualified Control.Monad.State as ST (get, put)
 import Data.Functor ((<&>))
 import Control.Monad (unless)
+import Util (maybeToExcept)
 
 
 data VM = VM { _pc    :: Int
@@ -85,9 +86,7 @@ isDebug :: Computation Bool
 isDebug = get <&> _debug
 
 stackAt :: Int -> String -> Computation Int
-stackAt index err = get >>= \vm -> case _stack vm S.!? index of
-  (Just i) -> return i
-  Nothing  -> throwError err
+stackAt index err = get >>= \vm -> maybeToExcept (_stack vm S.!? index) err
 
 frameAt :: Int -> (Int -> Int) -> String -> Computation Int
 frameAt index t name = do
@@ -95,9 +94,7 @@ frameAt index t name = do
   fp <- getFp
   unless (fp > -1) (throwError "No active stack frame")
   stackSize <- getStackSize
-  case _stack vm S.!? (stackSize - fp - 1 - t index) of
-    (Just i) -> return i
-    Nothing  -> throwError $ "Cannot determine " ++ name ++ " - index " ++ show index ++ " out of frame bounds"
+  maybeToExcept (_stack vm S.!? (stackSize - fp - 1 - t index)) $ "Cannot determine " ++ name ++ " - index " ++ show index ++ " out of frame bounds"
 
 updateFrameAt :: Int -> Int -> Computation ()
 updateFrameAt index value = do

@@ -5,13 +5,16 @@ module Util (
   head,
   unescape,
   controlChar,
-  explode
+  explode,
+  maybeToExcept,
+  maybeToEither
 ) where
 
 import Prelude hiding (head)
 import Data.Word (Word8)
 import Data.Char (chr, toLower)
 import Numeric (showHex)
+import Control.Monad.Except (MonadError (throwError))
 
 
 toLowerCase :: String -> String
@@ -25,10 +28,9 @@ byteStr = pad '0' 2 . flip showHex "" . (fromIntegral :: Word8 -> Integer)
 
 insertAtN :: a -> Int -> [a] -> [a]
 insertAtN c n xs = insertAtN' n xs
-  where
-    insertAtN' 0 ys = c : insertAtN' n ys
-    insertAtN' _ [] = []
-    insertAtN' m (y:ys) = y : insertAtN' (m-1) ys
+  where insertAtN' 0 ys = c : insertAtN' n ys
+        insertAtN' _ [] = []
+        insertAtN' m (y:ys) = y : insertAtN' (m-1) ys
 
 pad :: Char -> Int -> String -> String
 pad char width string = replicate (width - length string) char ++ string
@@ -38,11 +40,8 @@ head []    = Nothing
 head (x:_) = Just x
 
 unescape :: String -> Maybe String
-unescape ('\\':x:xs) = do
-  cc <- chr <$> controlChar x
-  rest <- unescape xs
-  return $ cc : rest
-unescape (x:xs) = unescape xs >>= (\rest -> return $ x : rest)
+unescape ('\\':x:xs) = (:) . chr <$> controlChar x <*> unescape xs
+unescape (x:xs) = (x:) <$> unescape xs
 unescape [] = Just []
 
 controlChar :: Char -> Maybe Int
@@ -62,8 +61,17 @@ controlChar x = case x of
 
 explode :: (Foldable f) => (a -> Bool) -> f a -> [[a]]
 explode predicate xs = filter (not . null) $ foldr split [[]] xs
-  where
-    split _ [] = []
-    split y (ys:yss)
-      | predicate y = []:ys:yss
-      | otherwise   = (y:ys):yss 
+  where split _ [] = []
+        split y (ys:yss)
+          | predicate y = []:ys:yss
+          | otherwise   = (y:ys):yss
+
+maybeToEither :: Maybe a -> e -> Either e a
+maybeToEither m err = case m of
+  (Just x) -> Right x
+  Nothing  -> Left err
+
+maybeToExcept :: MonadError e m => Maybe a -> e -> m a
+maybeToExcept m err = case m of
+  (Just x) -> return x
+  Nothing  -> throwError err

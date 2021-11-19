@@ -10,6 +10,5 @@ main = do
   input <- readFile filename
   result <- run input
   case result of
-    (Right vm) -> do
-      putStrLn $ "\nDone\n" ++ show vm
+    (Right vm) -> putStrLn $ "\n\nDone. \n" ++ show vm
     (Left err) -> putStrLn $ "\n\nError:\n" ++ err
