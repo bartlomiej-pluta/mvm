@@ -1,4 +1,15 @@
 ; Evaluate 2^10 - recursive variant
+;
+; pseudocode:
+; pow(2, 10)
+;
+; pow(base, exp) {
+;   if (exp == 0) {
+;     return 1                        // .edge
+;   }
+;
+;   return base * pow(base, exp - 1)
+; }
 
 push 2          ; base
 push 10         ; exp
@@ -22,7 +33,7 @@ pow:   lda 1     ; base
        clr 1     ; | base               base^(exp-1)
        mul       ; | base*base^(exp-1)
        ret       ; | base*base^(exp-1)
-       
-.edge: pop    
+
+.edge: pop
        push 1    ; return 1
-       ret      
+       ret

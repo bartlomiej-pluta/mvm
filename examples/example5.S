@@ -1,4 +1,17 @@
 ; The N-th element of Fibbonaci sequence - recursive variant
+;
+; pseudocode:
+; fibb(n) {
+;   if (n == 0) {
+;     return 1                    // .done0
+;   }
+;
+;   if ((n-1) == 0) {
+;     return 1                    // .done1
+;   }
+;
+;   return fibb(n-2) + fibb(n-1)
+; }
 
 push 6
 call &fibb
@@ -8,7 +21,7 @@ halt
 fibb:   lda 0       ; n                  | Stack:
         ldl 0       ; n == 0 -> return 1 | n
         je &.done0  ;                    | n
-        pop         ;                    | 
+        pop         ;                    |
         ldl 0       ; n == 1 -> return 1 | n
         push 1      ;                    | n   1
         sub         ;                    | n-1
@@ -27,7 +40,7 @@ fibb:   lda 0       ; n                  | Stack:
 .done1: pop
         push 1
         ret
-       
+
 .done0: pop
         push 1
         ret

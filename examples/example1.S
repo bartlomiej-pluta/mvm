@@ -1,4 +1,15 @@
 ; Evaluate 2*3+5
+;
+; pseudocode:
+; sum(prd(2, 3), 5)
+;
+; sum(a, b) {
+;   return a+b
+; }
+;
+; prd(a, b) {
+;   return a*b;
+; }
 
 main: push 2
       push 3
